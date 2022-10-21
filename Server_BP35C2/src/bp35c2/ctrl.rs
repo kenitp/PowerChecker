@@ -1,12 +1,12 @@
 extern crate regex;
-extern crate serialport;
 
-use std::time::Duration;
-use std::io::prelude::*;
-use std::error::Error;
 use serialport::SerialPort;
+use std::time::Duration;
+use std::error::Error;
 
 use regex::Regex;
+
+use crate::bp35c2::device;
 
 pub struct MeterInfo {
     pub channel: String,
@@ -21,7 +21,103 @@ pub const GET_POWER_W:[u8;16] = [0x10, 0x81, 0x00, 0x01, 0x05, 0xFF, 0x01, 0x02,
 pub const GET_POWER_A:[u8;16] = [0x10, 0x81, 0x00, 0x01, 0x05, 0xFF, 0x01, 0x02, 0x88, 0x01, 0x62, 0x01, 0xE8, 0x00, 0x0d, 0x0a];
 
 
-pub fn wait_resp_command_ok(resp: &Vec<String>) -> Result<(), std::io::ErrorKind> {
+pub(crate) fn init_bp35c2(device_path: &str, b_route_id: &str, b_route_pass: &str) -> Result<Box<dyn SerialPort>, Box<dyn Error>> {
+    let mut port = device::init_serial_io(device_path)?;
+
+    send(&mut port, "SKRESET", 1000, true).unwrap();
+    let resp = send(&mut port, "SKVER", 100, true).unwrap();
+    match wait_resp_ok(&resp) {
+        Ok(_) => (),
+        Err(e) => println!("err value = {}", e),
+    }
+    let resp = send(&mut port, "SKINFO", 100, true).unwrap();
+    match wait_resp_ok(&resp) {
+        Ok(_) => (),
+        Err(e) => println!("err value = {}", e),
+    }
+    let resp = send(&mut port, "SKAPPVER", 100, true).unwrap();
+    match wait_resp_ok(&resp) {
+        Ok(_) => (),
+        Err(e) => println!("err value = {}", e),
+    }
+    let resp = send(&mut port, &("SKSETRBID ".to_string() + &b_route_id.to_string()), 100, true).unwrap();
+    match wait_resp_ok(&resp) {
+        Ok(_) => (),
+        Err(e) => println!("err value = {}", e),
+    }
+    let resp = send(&mut port, &("SKSETPWD c ".to_string() + &b_route_pass.to_string()), 100, true).unwrap();
+    match wait_resp_ok(&resp) {
+        Ok(_) => (),
+        Err(e) => println!("err value = {}", e),
+    }
+    return Ok(port)
+}
+
+pub fn scan_meter(port: &mut Box<dyn SerialPort>) -> MeterInfo {
+    let mut meter_info: MeterInfo;
+    loop {
+        let resp = send(port, "SKSCAN 2 FFFFFFFF 6 0", 20000, true).unwrap();
+        meter_info = wait_resp_event20(&resp);
+        if meter_info.event20 == true {
+            break;
+        }
+    }
+    send(port, &("SKSREG S2 ".to_string() + &meter_info.channel), 100, true).unwrap();
+    send(port, &("SKSREG S3 ".to_string() + &meter_info.pan_id), 100, true).unwrap();
+    let resp = send(port, &("SKLL64 ".to_string() + & meter_info.meter_mac_addr), 100, true).unwrap();
+    meter_info.meter_ip6_addr = resp[1].to_string();
+    send(port, &("SKJOIN ".to_string() + &meter_info.meter_ip6_addr), 300, false).unwrap();
+    wait_resp_event25(port);
+    MeterInfo { 
+        channel: meter_info.channel,
+        pan_id: meter_info.pan_id, 
+        meter_mac_addr: meter_info.meter_mac_addr,
+        meter_ip6_addr: meter_info.meter_ip6_addr,
+        event20: meter_info.event20,
+        event22: meter_info.event22, 
+    }
+}
+
+pub fn connect_meter(port: &mut Box<dyn SerialPort>, meterinfo: &MeterInfo) {
+    send(port, &("SKJOIN ".to_string() + &meterinfo.meter_ip6_addr), 300, false).unwrap();
+    wait_resp_event25(port); 
+}
+
+pub fn read_power_w(port: &mut Box<dyn SerialPort>, meterinfo: &MeterInfo) -> Result<u32, std::io::ErrorKind>{
+    let power;
+    match send_echonet_udp(port, &meterinfo.meter_ip6_addr, &GET_POWER_W) {
+        Ok(_) => {
+            match wait_resp_erxudp_w(port, 10000) {
+                Ok(v) => power = v,
+                Err(_) => return Err(std::io::ErrorKind::InvalidData)
+            }
+        },
+        Err(e) => {
+            println!("err value = {}", e);
+            return Err(std::io::ErrorKind::InvalidData)
+        }
+    }
+    Ok(power)
+}
+
+pub fn read_power_a(port: &mut Box<dyn SerialPort>, meterinfo: &MeterInfo) -> Result<f64, std::io::ErrorKind>{
+    let power: f64;
+    match send_echonet_udp(port, &meterinfo.meter_ip6_addr, &GET_POWER_A) {
+        Ok(_) => {
+            match wait_resp_erxudp_a(port, 10000) {
+                Ok(v) => power = v,
+                Err(_) => return Err(std::io::ErrorKind::InvalidData)
+            }
+        },
+        Err(e) => {
+            println!("err value = {}", e);
+            return Err(std::io::ErrorKind::InvalidData)
+        }
+    }
+    Ok(power)
+}
+
+fn wait_resp_ok(resp: &Vec<String>) -> Result<(), std::io::ErrorKind> {
 
     let ret = match &*resp[resp.len() - 1] {
         "OK" => (),
@@ -30,14 +126,14 @@ pub fn wait_resp_command_ok(resp: &Vec<String>) -> Result<(), std::io::ErrorKind
     Ok(ret)
 }
 
-pub fn wait_resp_event20(resp: &Vec<String>, meter_info: &mut MeterInfo) -> MeterInfo {
+fn wait_resp_event20(resp: &Vec<String>) -> MeterInfo {
 
-    let mut event20 = meter_info.event20;
-    let mut event22 = meter_info.event22;
-    let mut pan_id = String::from(&meter_info.pan_id);
-    let mut channel = String::from(&meter_info.channel);
-    let mut meter_mac_addr = String::from(&meter_info.meter_mac_addr);
-    let meter_ip6_addr = String::from(&meter_info.meter_ip6_addr);
+    let mut event20 = false;
+    let mut event22 = false;
+    let mut pan_id = String::new();
+    let mut channel = String::new();
+    let mut meter_mac_addr = String::new();
+    let meter_ip6_addr = String::new();
 
     for i in resp {
         if Some(0) <= i.find("EVENT 20"){
@@ -72,10 +168,10 @@ pub fn wait_resp_event20(resp: &Vec<String>, meter_info: &mut MeterInfo) -> Mete
     }
 }
 
-pub fn wait_resp_event25(port: &mut Box<dyn SerialPort>){
+fn wait_resp_event25(port: &mut Box<dyn SerialPort>){
     let mut event25 = false;
     loop {
-        let resp = rx_command(port);
+        let resp = device::rx_command(port);
         let mut cmd: Vec<String> = Vec::new();
         match resp {
             Ok(v) => cmd = v,
@@ -96,12 +192,12 @@ pub fn wait_resp_event25(port: &mut Box<dyn SerialPort>){
     }
 }
 
-pub fn wait_resp_erxudp_w(port: &mut Box<dyn SerialPort>, time_ms: u64) -> Result<u32, std::io::ErrorKind> {
+fn wait_resp_erxudp_w(port: &mut Box<dyn SerialPort>, time_ms: u64) -> Result<u32, std::io::ErrorKind> {
     let mut rcv = false;
     let mut power_w: u32 = 0;
     let mut count: u64 = 0;
     loop {
-        let resp = rx_command(port);
+        let resp = device::rx_command(port);
         let mut cmd: Vec<String> = Vec::new();
         match resp {
             Ok(v) => cmd = v,
@@ -147,12 +243,12 @@ pub fn wait_resp_erxudp_w(port: &mut Box<dyn SerialPort>, time_ms: u64) -> Resul
     Ok(power_w)
 }
 
-pub fn wait_resp_erxudp_a(port: &mut Box<dyn SerialPort>, time_ms: u64) -> Result<f64, std::io::ErrorKind> {
+fn wait_resp_erxudp_a(port: &mut Box<dyn SerialPort>, time_ms: u64) -> Result<f64, std::io::ErrorKind> {
     let mut rcv = false;
     let mut power_a: u32 = 0;
     let mut count: u64 = 0;
     loop {
-        let resp = rx_command(port);
+        let resp = device::rx_command(port);
         let mut cmd: Vec<String> = Vec::new();
         match resp {
             Ok(v) => cmd = v,
@@ -202,98 +298,20 @@ pub fn wait_resp_erxudp_a(port: &mut Box<dyn SerialPort>, time_ms: u64) -> Resul
 
 }
 
-fn tx_command_str(port: &mut Box<dyn SerialPort>, cmd: &str, millis: u64) -> Result<(), Box<dyn Error>>{
-    println!("SND: {:?}", cmd);
-    let str = String::from(cmd) + "\r\n";
-    match port.write(str.as_bytes()) {
-        Ok(_) => std::io::stdout().flush()?,
-        Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => (),
-        Err(e) => eprintln!("{:?}", e),
-    }
-    std::thread::sleep(Duration::from_millis(millis));
-    Ok(())
-}
-
-fn tx_command_bytes(port: &mut Box<dyn SerialPort>, cmd: &[u8], millis: u64) -> Result<(), Box<dyn Error>>{
-    match port.write(cmd) {
-        Ok(_) => std::io::stdout().flush()?,
-        Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => (),
-        Err(e) => eprintln!("{:?}", e),
-    }
-    std::thread::sleep(Duration::from_millis(millis));
-    Ok(())
-}
-
-fn rx_command(port: &mut Box<dyn SerialPort>) -> Result<Vec<String>, Box<dyn Error>>{
-    let mut buf: Vec<u8> = vec![0; 1000];
-    let mut cmds_byte: Vec<Vec<u8>> = Vec::new();
-    let mut cmds_str: Vec<String> = Vec::new();
-    match port.read(buf.as_mut_slice()) {
-        Ok(t) => {
-            let bytes = &buf[..t];
-            let mut start_idx = 0;
-            for index in 0..t {
-                if (bytes[index] == 0x0a) && (bytes[index-1] == 0x0d) {
-                    let cmd: Vec<u8> = bytes[start_idx..index-1].to_vec();
-                    if 0 < cmd.len(){
-                        cmds_byte.push(cmd);
-                    }
-                    start_idx = index+1;
-                }
-            }
-            for cmd_byte in cmds_byte {
-                let string = get_one_line_from_cmdbytes(&cmd_byte);
-                cmds_str.push(string);
-            }
-        }
-        Err(e) => eprintln!("{:?}", e),
-    }
-    Ok(cmds_str)
-}
-
-fn get_one_line_from_cmdbytes(cmd: &Vec<u8>) -> String {
-
-    let slice: &[u8] = cmd;
-    let mut len: usize = 0;
-    for i in 0..cmd.len() {
-        match String::from_utf8(slice[0..(cmd.len()-i)].to_vec()) {
-            Ok(_) => {
-                len = cmd.len() - i;
-                break;
-            },
-            Err(_) => {
-            },
-        }
-    }
-    let string = String::from_utf8(slice[0..(len)].to_vec()).unwrap();
-    println!("RCV: {:?}", string);
-    string
-}
-
-pub fn init_serial_io(device_path: &str) -> Result<Box<dyn SerialPort>, Box<dyn Error>> {
-    let port = serialport::new(device_path, 115200)
-        .stop_bits(serialport::StopBits::One)
-        .data_bits(serialport::DataBits::Eight)
-        .parity(serialport::Parity::None)
-        .timeout(Duration::from_millis(100))
-        .open()?;
-    return Ok(port)
-}
-
-pub fn send_command(port: &mut Box<dyn SerialPort>, cmd: &str, millis: u64, resp: bool) -> Result<Vec<String>, Box<dyn Error>>{
-    match tx_command_str(port, cmd, millis){
+fn send(port: &mut Box<dyn SerialPort>, cmd: &str, millis: u64, resp: bool) -> Result<Vec<String>, Box<dyn Error>>{
+    match device::tx_command_str(port, cmd, millis){
         Ok(())=> (),
         Err(err) => return Err(err),
     }
     if resp == true {
-        return rx_command(port);
+        return device::rx_command(port);
     } else {
         let cmds: Vec<String> = Vec::new();
         return Ok(cmds);
     }
 }
 
-pub fn send_echonet_udp(serial: &mut Box<dyn SerialPort>, ip6addr: &str, cmd: &[u8]) -> Result<(), Box<dyn Error>>{
+fn send_echonet_udp(port: &mut Box<dyn SerialPort>, ip6addr: &str, cmd: &[u8]) -> Result<(), Box<dyn Error>>{
     let header: String = "SKSENDTO 1 ".to_string() + ip6addr + " 0E1A 1 0 000E ";
     let mut tmp_cmd_bytes : Vec<u8> = Vec::new();
 
@@ -306,7 +324,7 @@ pub fn send_echonet_udp(serial: &mut Box<dyn SerialPort>, ip6addr: &str, cmd: &[
 
     let cmd_bytes : &[u8] = &tmp_cmd_bytes;
     println!("SEND(ECHONET): {}", header);
-    match tx_command_bytes(serial, cmd_bytes, 1000){
+    match device::tx_command_bytes(port, cmd_bytes, 1000){
         Ok(v)=> return Ok(v),
         Err(err) => return Err(err),
     }
