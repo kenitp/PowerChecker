@@ -7,7 +7,9 @@
 
 WiFiMulti wifiMulti;
 
-void resetDisplay(void);
+static void resetDisplay(void);
+static void displayTitle(void);
+static void displayValues(String *power_w, String *power_a);
 
 DynamicJsonDocument doc(4096);
 
@@ -64,11 +66,8 @@ void loop() {
 
                 if (chg == true) {
                     resetDisplay();
-                    M5.Lcd.setTextSize(2);
-                    M5.Lcd.println("Electricity Usage");
-                    M5.Lcd.setTextSize(5);
-                    M5.Lcd.printf(" %4s W\n", &power_w);
-                    M5.Lcd.printf("  %4s A\n", &power_a);
+                    displayTitle();
+                    displayValues(&power_w, &power_a);
                 }
             }
         } else {
@@ -83,8 +82,31 @@ void loop() {
     delay(30000);
 }
 
-void resetDisplay(void) {
-    M5.Lcd.setCursor(0, 20);
+static void resetDisplay(void) {
+    M5.Lcd.setCursor(0, 15);
     M5.Lcd.clear(BLACK);
+    return;
+}
+
+static void displayTitle(void) {
+    M5.Lcd.setTextFont(2);
+    M5.Lcd.setTextSize(2);
+    M5.Lcd.println("Electricity Usage");
+    return;
+}
+
+static void displayValues(String *power_w, String *power_a) {
+    M5.Lcd.setTextFont(4);
+    M5.Lcd.setTextSize(3);
+
+    M5.Lcd.setCursor(M5.Lcd.getCursorX()+20, M5.Lcd.getCursorY()+20);
+    M5.Lcd.printf(" %4s ", power_w);
+    int16_t cur_unit_X = M5.Lcd.getCursorX();
+    M5.Lcd.println("W");
+
+    M5.Lcd.setCursor(M5.Lcd.getCursorX()+40, M5.Lcd.getCursorY());
+    M5.Lcd.printf(" %4s ", power_a);
+    M5.Lcd.setCursor(cur_unit_X+12, M5.Lcd.getCursorY());
+    M5.Lcd.println("A");
     return;
 }
