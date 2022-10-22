@@ -36,7 +36,7 @@ B ルートサービスを使用して自宅の電力使用量をリアルタイ
      $ cargo run
      ```
      Ubuntu 環境だと、/dev/ttyUSB\* は dialout グループになるようです。
-     実行するユーザーアカウントを dialout グループに追加しておく必要があります。
+     実行するユーザーアカウントを dialout グループに追加しておく必要がありました。
      ```
      $ sudo adduser $USER dialout
      ```
