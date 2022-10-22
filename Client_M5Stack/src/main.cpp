@@ -101,12 +101,14 @@ static void displayValues(String *power_w, String *power_a) {
 
     M5.Lcd.setCursor(M5.Lcd.getCursorX()+20, M5.Lcd.getCursorY()+20);
     M5.Lcd.printf(" %4s ", power_w);
-    int16_t cur_unit_X = M5.Lcd.getCursorX();
+    int16_t curW_unit_X = M5.Lcd.getCursorX();
     M5.Lcd.println("W");
 
     M5.Lcd.setCursor(M5.Lcd.getCursorX()+40, M5.Lcd.getCursorY());
     M5.Lcd.printf(" %4s ", power_a);
-    M5.Lcd.setCursor(cur_unit_X+12, M5.Lcd.getCursorY());
+    int16_t curA_unit_X = M5.Lcd.getCursorX();
+    int16_t cur = max(curW_unit_X, curA_unit_X);
+    M5.Lcd.setCursor(cur+11, M5.Lcd.getCursorY());
     M5.Lcd.println("A");
     return;
 }
