@@ -2,19 +2,32 @@
 #include <M5Stack.h>
 #include <SD.h>
 
-enum BUTTON_MODE {
-    MODE_INIT,
-    MODE_POWER = MODE_INIT,
-    MODE_POWER_IMG,
-    MODE_CLOCK,
-    MODE_PHOTO,
-    MODE_NUM
+enum class BUTTON_MODE : int {
+    INIT,
+    POWER = INIT,
+    POWER_IMG,
+    CLOCK,
+    PHOTO,
+    NUM
 };
 
-extern void IRAM_ATTR onLeftButton(void);
-extern void IRAM_ATTR onMiddleButton(void);
-extern void IRAM_ATTR onRightButton(void);
+class ButtonMode {
+public:
+    ButtonMode(){};
+    ~ButtonMode(){};
 
-extern BUTTON_MODE get_button_mode(void);
-extern void init_button_mode(void);
-extern bool is_mode_changed(void);
+    // Button 割込み Handler
+    static void IRAM_ATTR onLeftButton(void);
+    static void IRAM_ATTR onMiddleButton(void);
+    static void IRAM_ATTR onRightButton(void);
+
+    static BUTTON_MODE get_mode(void);
+    static void init_mode(void);
+    static bool is_changed(void);
+    static void check_sd_exist(void);
+
+private:
+    static BUTTON_MODE button_mode;
+    static bool button_mode_changed;
+    static bool is_exist_sd;
+};

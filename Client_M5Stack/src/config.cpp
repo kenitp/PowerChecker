@@ -12,8 +12,8 @@ const char* NTP_SERVER = "ntp.nict.jp";
 const long GMT_OFFSET_SEC = 9 * 3600;
 const int DAY_LIGHT_OFFSET_SEC = 0;
 
-const char* power_img[POWER_NUM] = {
-    "/img/power/moomin_low.jpg",        // POWER_LOW
-    "/img/power/moomin_mid.jpg",        // POWER_MID
-    "/img/power/moomin_high.jpg"        // POWER_HIGH
+const char* power_img[static_cast<int>(POWER_LEVEL::LvNUM)] = {
+    "/img/power/img_low.jpg",        // POWER_LOW
+    "/img/power/img_mid.jpg",        // POWER_MID
+    "/img/power/img_high.jpg"        // POWER_HIGH
 };
