@@ -1,57 +1,61 @@
 #include "button.h"
 
-static BUTTON_MODE button_mode = MODE_INIT;
-static bool button_mode_changed = false;
-static bool is_exist_sd = true;
+BUTTON_MODE ButtonMode::button_mode;
+bool ButtonMode::button_mode_changed;
+bool ButtonMode::is_exist_sd;
 
-// Button 割込み Handler
-void IRAM_ATTR onLeftButton(void) {
+
+void IRAM_ATTR ButtonMode::onLeftButton(void) {
     return;
 }
 
- void IRAM_ATTR onMiddleButton(void) {
-    int mode = (int)button_mode;
+void IRAM_ATTR ButtonMode::onMiddleButton(void) {
+    int mode = static_cast<int>(ButtonMode::button_mode);
     mode++;
 
     // If SD card is not mounted, skip the mode which needs SD card.
     if (is_exist_sd == false) {
-        if ((mode == MODE_POWER_IMG) || (mode == MODE_PHOTO)) {
+        if ((mode == static_cast<int>(BUTTON_MODE::POWER_IMG)) || (mode == static_cast<int>(BUTTON_MODE::PHOTO))) {
             mode++;
         }
     }
-    if (mode >= MODE_NUM){
-        mode = MODE_POWER;
+    if (mode >= static_cast<int>(BUTTON_MODE::NUM)){
+        mode = static_cast<int>(BUTTON_MODE::POWER);
     }
-    button_mode = (BUTTON_MODE)mode;
-    button_mode_changed = true;
+    ButtonMode::button_mode = static_cast<BUTTON_MODE>(mode);
+    ButtonMode::button_mode_changed = true;
     return;
 }
 
-void IRAM_ATTR onRightButton(void) {
+void IRAM_ATTR ButtonMode::onRightButton(void) {
     return;
 }
 
-
-// 公開関数
-BUTTON_MODE get_button_mode(void){
-    return button_mode;
+BUTTON_MODE ButtonMode::get_mode(void){
+    return ButtonMode::button_mode;
 }
 
-void init_button_mode(void){
-    button_mode = MODE_INIT;
-    if (SD.open("/")) {
-        is_exist_sd = true;
-    } else {
-        is_exist_sd = false;
-    }
+void ButtonMode::init_mode(void){
+    ButtonMode::button_mode = BUTTON_MODE::INIT;
+    ButtonMode::button_mode_changed = false;
+    check_sd_exist();
     return;
 }
 
-bool is_mode_changed(void) {
-    bool ret = button_mode_changed;
+bool ButtonMode::is_changed(void) {
+    bool ret = ButtonMode::button_mode_changed;
     if (ret == true) {
-        button_mode_changed = false;
-        Serial.printf("[Debug] Mode Changed (Mode: %d)\r\n", button_mode);
+        ButtonMode::button_mode_changed = false;
+        Serial.printf("[Debug] Mode Changed (Mode: %d)\r\n", ButtonMode::button_mode);
     }
     return ret;
+}
+
+void ButtonMode::check_sd_exist(void) {
+    if (SD.open("/")) {
+        ButtonMode::is_exist_sd = true;
+    } else {
+        ButtonMode::is_exist_sd = false;
+    }
+    return;
 }

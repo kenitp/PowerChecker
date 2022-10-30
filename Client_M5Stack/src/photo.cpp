@@ -3,8 +3,8 @@
 void taskPhoto(void *args) {
     Serial.println("[Debug] taskPhoto Start");
     while(true) {
-        if (get_button_mode() == MODE_PHOTO) {
-            if (is_mode_changed()) {
+        if (ButtonMode::get_mode() == BUTTON_MODE::PHOTO) {
+            if (ButtonMode::is_changed()) {
                 resetDisplay();
                 M5.Lcd.drawJpgFile(SD,"/img/img002.jpg");;
             }

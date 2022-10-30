@@ -11,8 +11,8 @@ const char* week[7] = {"Sun", "Mon", "Tue", "wed", "Thu", "Fri", "Sat"};
 void taskClock(void *args) {
     Serial.println("[Debug] taskClock Start");
     while(true) {
-        if (get_button_mode() == MODE_CLOCK) {
-            if (is_mode_changed()) {
+        if (ButtonMode::get_mode() == BUTTON_MODE::CLOCK) {
+            if (ButtonMode::is_changed()) {
                 resetDisplay();
             }
 

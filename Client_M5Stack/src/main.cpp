@@ -9,9 +9,9 @@ void setup() {
     pinMode(GPIO_NUM_38, INPUT);
     pinMode(GPIO_NUM_37, INPUT);
 
-    attachInterrupt(digitalPinToInterrupt(GPIO_NUM_39), onLeftButton, FALLING);
-    attachInterrupt(digitalPinToInterrupt(GPIO_NUM_38), onMiddleButton, FALLING);
-    attachInterrupt(digitalPinToInterrupt(GPIO_NUM_37), onRightButton, FALLING);
+    attachInterrupt(digitalPinToInterrupt(GPIO_NUM_39), ButtonMode::onLeftButton, FALLING);
+    attachInterrupt(digitalPinToInterrupt(GPIO_NUM_38), ButtonMode::onMiddleButton, FALLING);
+    attachInterrupt(digitalPinToInterrupt(GPIO_NUM_37), ButtonMode::onRightButton, FALLING);
 
     // M5.Lcd.setCursor(20, 60);
     M5.Lcd.setBrightness(10);
@@ -26,7 +26,8 @@ void setup() {
     M5.Lcd.print("\r\nWiFi connected\r\nIP address: ");
     M5.Lcd.println(WiFi.localIP());
     init_clock();
-    init_button_mode();
+
+    ButtonMode::init_mode();
     xTaskCreatePinnedToCore(taskPower, "PowerCheck", 4096, NULL, 2, NULL, 1);
     xTaskCreatePinnedToCore(taskClock, "Clock", 4096, NULL, 2, NULL, 1);
     xTaskCreatePinnedToCore(taskPhoto, "Photo", 4096, NULL, 2, NULL, 1);
@@ -34,5 +35,6 @@ void setup() {
 }
 
 void loop() {
-    delay(300);
+    delay(3000);
+    ButtonMode::check_sd_exist();
 }
