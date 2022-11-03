@@ -1,4 +1,4 @@
-#include "photo.h"
+#include "photo_frame_int.h"
 
 void taskPhoto(void *args) {
     Serial.println("[Debug] taskPhoto Start");

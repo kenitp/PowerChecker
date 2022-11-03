@@ -16,3 +16,7 @@ extern const long GMT_OFFSET_SEC;
 extern const int DAY_LIGHT_OFFSET_SEC;
 
 extern const char* power_img[static_cast<int>(POWER_LEVEL::LvNUM)];
+extern const char* power_img_dir[static_cast<int>(POWER_LEVEL::LvNUM)];
+
+extern const char* FTP_USER;
+extern const char* FTP_PASS;

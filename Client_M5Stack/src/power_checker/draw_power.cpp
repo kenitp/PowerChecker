@@ -1,5 +1,5 @@
 #include <sstream>
-#include "draw_power.h"
+#include "draw_power_int.h"
 
 String DrawPower::last_power_w = "0";
 String DrawPower::last_power_a = "0.0";
@@ -26,7 +26,7 @@ DrawPower::DrawPower(bool isExistImg) {
     }
 }
 
-void DrawPower::draw(String *power_w, String *power_a, bool force){
+void DrawPower::draw(String *power_w, String *power_a, bool force, PowerPhoto &ins){
     bool chg = false;
 
     if (last_power_a != *power_a) {
@@ -41,7 +41,7 @@ void DrawPower::draw(String *power_w, String *power_a, bool force){
     if ((chg == true) || (force == true)) {
         resetDisplay();
         if (is_exist_img == true) {
-            drawImage(power_w);
+            drawImage(power_w, ins);
         }
         drawTitle();
         drawValues(power_w, power_a);
@@ -81,20 +81,27 @@ void DrawPower::drawValues(String *power_w, String *power_a) {
     return;
 }
 
-void DrawPower::drawImage(String *power_w) {
+void DrawPower::drawImage(String *power_w, PowerPhoto &ins) {
     int num = 0;
-    Serial.printf("[Debug] power_w = %s", power_w);
     std::istringstream iss(power_w->c_str());
     iss >> num;
-    Serial.printf("[Debug] power_w = %d", num);
-    const char* img_path = power_img[static_cast<int>(POWER_LEVEL::LvLOW)];
+    String* img_path;
     if (num < 300) {
-        img_path = power_img[static_cast<int>(POWER_LEVEL::LvLOW)];
+        img_path = ins.get_power_photo(POWER_LEVEL::LvLOW);
+        Serial.printf("[Debug] image_low = %s\r\n", img_path->c_str());
     } else if (num < 1200) {
-        img_path = power_img[static_cast<int>(POWER_LEVEL::LvMID)];
+        img_path = ins.get_power_photo(POWER_LEVEL::LvMID);
+        Serial.printf("[Debug] image_mid = %s\r\n", img_path->c_str());
     } else {
-        img_path = power_img[static_cast<int>(POWER_LEVEL::LvHIGH)];
+        img_path = ins.get_power_photo(POWER_LEVEL::LvHIGH);
+        Serial.printf("[Debug] image_high = %s\r\n", img_path->c_str());
     }
-    M5.Lcd.drawJpgFile(SD, img_path, 185, 55);
+    if (img_path->indexOf(".jpg") != -1) {
+        Serial.printf("[Debug] drawJpg = %s\r\n", img_path->c_str());
+        M5.Lcd.drawJpgFile(SD, img_path->c_str(), 185, 55);
+    } else {
+        Serial.printf("[Debug] drawPng = %s\r\n", img_path->c_str());
+        M5.Lcd.drawPngFile(SD, img_path->c_str(), 185, 55);
+    }
     return;
 }
