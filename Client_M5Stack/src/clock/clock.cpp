@@ -1,4 +1,4 @@
-#include "clock.h"
+#include "clock_int.h"
 
 static bool get_time_from_ntp(void);
 static void display_clock(struct tm &timeinfo);

@@ -5,8 +5,8 @@
 #include <ArduinoJson.h>
 #include "config.h"
 #include "display.h"
-#include "button.h"
-#include "draw_power.h"
+#include "button_mode.h"
+#include "draw_power_int.h"
 
 extern void taskPower(void *args);
 extern void taskPower_image(void *args);

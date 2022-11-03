@@ -1,4 +1,4 @@
-#include "button.h"
+#include "button_mode_int.h"
 
 BUTTON_MODE ButtonMode::button_mode;
 bool ButtonMode::button_mode_changed;

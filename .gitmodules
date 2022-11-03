@@ -1,0 +1,3 @@
+[submodule "Client_M5Stack/lib/ESP32FTPServer"]
+	path = Client_M5Stack/lib/ESP32FTPServer
+	url = git@GitHub:kenitp/ESP32FTPServer.git

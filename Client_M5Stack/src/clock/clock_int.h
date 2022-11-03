@@ -3,7 +3,7 @@
 #include <WiFi.h>
 #include <time.h>
 #include "config.h"
-#include "button.h"
+#include "button_mode.h"
 #include "display.h"
 
 extern void taskClock(void *args);

@@ -3,13 +3,14 @@
 #include <M5Stack.h>
 #include "display.h"
 #include "config.h"
+#include "power_photo_int.h"
 
 class DrawPower {
 public:
     DrawPower(bool isExistImg);
     ~DrawPower(){};
 
-    void draw(String *power_w, String *power_a, bool force);
+    void draw(String *power_w, String *power_a, bool force, PowerPhoto &ins);
     void drawErr(const char *str);
     void display_power_values_image(String *power_w, String *power_a);
     void displayValues_image(String *power_w, String *power_a);
@@ -32,5 +33,5 @@ private:
 
     void drawTitle(void);
     void drawValues(String *power_w, String *power_a);
-    void drawImage(String *power_w);
+    void drawImage(String *power_w, PowerPhoto &ins);
 };

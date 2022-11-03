@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <sstream>
-#include "powerCheck.h"
+#include "powerCheck_int.h"
+#include "power_photo_int.h"
 
 static DynamicJsonDocument doc(4096);
 
@@ -8,6 +9,7 @@ void taskPower(void *args) {
     int count_sec = 0;
 
     Serial.println("[Debug] taskPower Start");
+    PowerPhoto pp = PowerPhoto();
 
     while(true) {
         bool force = false;
@@ -39,7 +41,7 @@ void taskPower(void *args) {
                             String power_a = doc["power_a"];
                             String power_w = doc["power_w"];
 
-                            dp.draw(&power_w, &power_a, force);
+                            dp.draw(&power_w, &power_a, force, pp);
                         }
                     } else {
                         char str[200];
