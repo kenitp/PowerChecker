@@ -4,12 +4,13 @@
 String DrawPower::last_power_w = "0";
 String DrawPower::last_power_a = "0.0";
 
-DrawPower::DrawPower(bool isExistImg) {
-    is_exist_img = isExistImg;
+DrawPower::DrawPower(bool isExistImg, std::shared_ptr<PowerPhoto> ins_pp) {
+    this->is_exist_img = isExistImg;
+    this->ins_pp = ins_pp;
     titleFont = 2;
     titleSize = 2; 
     valueFont = 4;
-    if (is_exist_img == true) {
+    if (this->is_exist_img == true) {
         valueSize = 2;
         w_offsetX = 20;
         w_offsetY = 40;
@@ -26,7 +27,7 @@ DrawPower::DrawPower(bool isExistImg) {
     }
 }
 
-void DrawPower::draw(String *power_w, String *power_a, bool force, PowerPhoto &ins){
+void DrawPower::draw(String *power_w, String *power_a, bool force){
     bool chg = false;
 
     if (last_power_a != *power_a) {
@@ -40,11 +41,11 @@ void DrawPower::draw(String *power_w, String *power_a, bool force, PowerPhoto &i
 
     if ((chg == true) || (force == true)) {
         resetDisplay();
-        if (is_exist_img == true) {
-            drawImage(power_w, ins);
+        if (this->is_exist_img == true) {
+            this->drawImage(power_w);
         }
-        drawTitle();
-        drawValues(power_w, power_a);
+        this->drawTitle();
+        this->drawValues(power_w, power_a);
     }
     return;
 }
@@ -81,19 +82,20 @@ void DrawPower::drawValues(String *power_w, String *power_a) {
     return;
 }
 
-void DrawPower::drawImage(String *power_w, PowerPhoto &ins) {
+void DrawPower::drawImage(String *power_w) {
     int num = 0;
     std::istringstream iss(power_w->c_str());
     iss >> num;
     String* img_path;
+
     if (num < 300) {
-        img_path = ins.get_power_photo(POWER_LEVEL::LvLOW);
+        img_path = this->ins_pp->getPowerPhoto(POWER_LEVEL::LvLOW);
         Serial.printf("[Debug] image_low = %s\r\n", img_path->c_str());
     } else if (num < 1200) {
-        img_path = ins.get_power_photo(POWER_LEVEL::LvMID);
+        img_path = this->ins_pp->getPowerPhoto(POWER_LEVEL::LvMID);
         Serial.printf("[Debug] image_mid = %s\r\n", img_path->c_str());
     } else {
-        img_path = ins.get_power_photo(POWER_LEVEL::LvHIGH);
+        img_path = this->ins_pp->getPowerPhoto(POWER_LEVEL::LvHIGH);
         Serial.printf("[Debug] image_high = %s\r\n", img_path->c_str());
     }
     if (img_path->indexOf(".jpg") != -1) {

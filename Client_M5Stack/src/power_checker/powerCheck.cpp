@@ -9,19 +9,23 @@ void taskPower(void *args) {
     int count_sec = 0;
 
     Serial.println("[Debug] taskPower Start");
-    PowerPhoto pp = PowerPhoto();
+    std::shared_ptr<PowerPhoto> pp(new PowerPhoto());
 
     while(true) {
         bool force = false;
-        BUTTON_MODE mode = ButtonMode::get_mode();
+        BUTTON_MODE mode = ButtonMode::getMode();
         if ((mode == BUTTON_MODE::POWER) || (mode == BUTTON_MODE::POWER_IMG)) {
-            bool isDrawImg = (mode == BUTTON_MODE::POWER_IMG);
-            DrawPower dp = DrawPower(isDrawImg);
-            if (ButtonMode::is_changed()) {
+            if (ButtonMode::isChanged()) {
+                force = true;
+                count_sec = 0;
+            } else if (ButtonMode::needRefresh() && (mode == BUTTON_MODE::POWER_IMG)) {
+                pp = std::shared_ptr<PowerPhoto>(new PowerPhoto());
                 force = true;
                 count_sec = 0;
             }
             if (count_sec == 0) {
+                bool isDrawImg = (mode == BUTTON_MODE::POWER_IMG);
+                DrawPower dp = DrawPower(isDrawImg, pp);
                 Serial.println("[Debug] Update Power Values");
                 if (WiFi.status() != WL_CONNECTED) {
                     const char* errStr = "WiFi not connected!";
@@ -41,7 +45,7 @@ void taskPower(void *args) {
                             String power_a = doc["power_a"];
                             String power_w = doc["power_w"];
 
-                            dp.draw(&power_w, &power_a, force, pp);
+                            dp.draw(&power_w, &power_a, force);
                         }
                     } else {
                         char str[200];
@@ -58,5 +62,6 @@ void taskPower(void *args) {
         }
         delay(1000);
     }
+
     return;
 }

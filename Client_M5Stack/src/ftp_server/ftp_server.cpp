@@ -16,8 +16,6 @@ void taskFtpServer(void *args)
     initFtpServer();
 
     while (true) {
-        if (WiFi.status() == WL_CONNECTED) {
-            ftp.handleFTP();
-        }
+        ftp.handleFTP();
     }
 }
