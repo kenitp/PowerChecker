@@ -20,13 +20,15 @@ public:
     static void IRAM_ATTR onMiddleButton(void);
     static void IRAM_ATTR onRightButton(void);
 
-    static BUTTON_MODE get_mode(void);
-    static void init_mode(void);
-    static bool is_changed(void);
-    static void check_sd_exist(void);
+    static BUTTON_MODE getMode(void);
+    static bool needRefresh(void);
+    static void initMode(void);
+    static bool isChanged(void);
+    static void checkSdExist(void);
 
 private:
-    static BUTTON_MODE button_mode;
-    static bool button_mode_changed;
-    static bool is_exist_sd;
+    static BUTTON_MODE buttonMode;
+    static bool buttonModeChanged;
+    static bool isExistSD;
+    static bool isRefresh;
 };

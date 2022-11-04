@@ -27,15 +27,15 @@ void setup() {
     M5.Lcd.println(WiFi.localIP());
     init_clock();
 
-    ButtonMode::init_mode();
-    xTaskCreatePinnedToCore(taskPower, "PowerCheck", 4096, NULL, 2, NULL, 1);
-    xTaskCreatePinnedToCore(taskClock, "Clock", 4096, NULL, 2, NULL, 1);
-    xTaskCreatePinnedToCore(taskPhoto, "Photo", 4096, NULL, 2, NULL, 1);
-    xTaskCreatePinnedToCore(taskFtpServer, "FtpServer", 4096, NULL, 2, NULL, 1);
+    ButtonMode::initMode();
+    xTaskCreatePinnedToCore(taskPower, "PowerCheck", 8192, NULL, 3, NULL, 1);
+    xTaskCreatePinnedToCore(taskClock, "Clock", 4096, NULL, 4, NULL, 1);
+    xTaskCreatePinnedToCore(taskPhoto, "Photo", 8192, NULL, 3, NULL, 1);
+    xTaskCreatePinnedToCore(taskFtpServer, "FtpServer", 8192, NULL, 2, NULL, 1);
     delay(3000);
 }
 
 void loop() {
     delay(3000);
-    ButtonMode::check_sd_exist();
+    ButtonMode::checkSdExist();
 }

@@ -1,26 +1,28 @@
 #include <SD.h>
 #include "power_photo_int.h"
 
-std::vector<String> PowerPhoto::photo_list_low;
-std::vector<String> PowerPhoto::photo_list_mid;
-std::vector<String> PowerPhoto::photo_list_high;
-
 PowerPhoto::PowerPhoto(){
-    get_photo_list(power_img_dir[static_cast<int>(POWER_LEVEL::LvLOW)], photo_list_low);
-    get_photo_list(power_img_dir[static_cast<int>(POWER_LEVEL::LvMID)], photo_list_mid);
-    get_photo_list(power_img_dir[static_cast<int>(POWER_LEVEL::LvHIGH)], photo_list_high);
+    this->photo_list_low.clear();
+    this->photo_list_mid.clear();
+    this->photo_list_high.clear();
+    getPhotoList(power_img_dir[static_cast<int>(POWER_LEVEL::LvLOW)], this->photo_list_low);
+    getPhotoList(power_img_dir[static_cast<int>(POWER_LEVEL::LvMID)], this->photo_list_mid);
+    getPhotoList(power_img_dir[static_cast<int>(POWER_LEVEL::LvHIGH)], this->photo_list_high);
 }
 
 PowerPhoto::~PowerPhoto(){
-    photo_list_low.clear();
-    photo_list_low.shrink_to_fit();
-    photo_list_mid.clear();
-    photo_list_mid.shrink_to_fit();
-    photo_list_high.clear();
-    photo_list_high.shrink_to_fit();
+    this->photo_list_low.clear();
+    this->photo_list_low.shrink_to_fit();
+    this->photo_list_mid.clear();
+    this->photo_list_mid.shrink_to_fit();
+    this->photo_list_high.clear();
+    this->photo_list_high.shrink_to_fit();
 }
 
-void PowerPhoto::get_photo_list(const char* path, std::vector<String> &list) {
+void PowerPhoto::createPhotoList(void) {
+}
+
+void PowerPhoto::getPhotoList(const char* path, std::vector<String> &list) {
     File root = SD.open(path);
     if (root) {
         File file = root.openNextFile();
@@ -41,20 +43,19 @@ void PowerPhoto::get_photo_list(const char* path, std::vector<String> &list) {
     }
 }
 
-String* PowerPhoto::get_power_photo(POWER_LEVEL level) {
+String* PowerPhoto::getPowerPhoto(POWER_LEVEL level) {
     String *ret;
     if (level == POWER_LEVEL::LvLOW) {
-        ret = get_photo_random_from_list(photo_list_low);
+        ret = PowerPhoto::getPhotoRandomFromList(photo_list_low);
     } else if (level == POWER_LEVEL::LvMID) {
-        ret = get_photo_random_from_list(photo_list_mid);
+        ret = PowerPhoto::getPhotoRandomFromList(photo_list_mid);
     } else {
-        ret = get_photo_random_from_list(photo_list_high);
+        ret = PowerPhoto::getPhotoRandomFromList(photo_list_high);
     }
     return ret;
 }
 
-String* PowerPhoto::get_photo_random_from_list(std::vector<String> &list) {
-
+String* PowerPhoto::getPhotoRandomFromList(std::vector<String> &list) {
     int index = random(list.size());
     return &list[index];
 }
