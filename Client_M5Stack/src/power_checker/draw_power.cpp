@@ -7,35 +7,35 @@ String DrawPower::last_power_a = "0.0";
 DrawPower::DrawPower(bool isExistImg, std::shared_ptr<PowerPhoto> ins_pp) {
     this->is_exist_img = isExistImg;
     this->ins_pp = ins_pp;
-    titleFont = 2;
-    titleSize = 2; 
-    valueFont = 4;
+    this->titleFont = 2;
+    this->titleSize = 2; 
+    this->valueFont = 4;
     if (this->is_exist_img == true) {
-        valueSize = 2;
-        w_offsetX = 20;
-        w_offsetY = 40;
-        a_offsetX = 30;
-        a_offsetY = 20;
-        a_unit_offsetX = 7; 
+        this->valueSize = 2;
+        this->w_offsetX = 20;
+        this->w_offsetY = 40;
+        this->a_offsetX = 30;
+        this->a_offsetY = 20;
+        this->a_unit_offsetX = 7; 
     } else {
-        valueSize = 3;
-        w_offsetX = 20;
-        w_offsetY = 20;
-        a_offsetX = 40;
-        a_offsetY = 0;
-        a_unit_offsetX = 11; 
+        this->valueSize = 3;
+        this->w_offsetX = 20;
+        this->w_offsetY = 20;
+        this->a_offsetX = 40;
+        this->a_offsetY = 0;
+        this->a_unit_offsetX = 11; 
     }
 }
 
 void DrawPower::draw(String *power_w, String *power_a, bool force){
     bool chg = false;
 
-    if (last_power_a != *power_a) {
-        last_power_a = *power_a;
+    if (DrawPower::last_power_a != *power_a) {
+        DrawPower::last_power_a = *power_a;
         chg = true;
     }
-    if (last_power_w != *power_w) {
-        last_power_w = *power_w;
+    if (DrawPower::last_power_w != *power_w) {
+        DrawPower::last_power_w = *power_w;
         chg = true;
     }
 

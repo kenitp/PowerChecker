@@ -5,9 +5,9 @@ PowerPhoto::PowerPhoto(){
     this->photo_list_low.clear();
     this->photo_list_mid.clear();
     this->photo_list_high.clear();
-    getPhotoList(power_img_dir[static_cast<int>(POWER_LEVEL::LvLOW)], this->photo_list_low);
-    getPhotoList(power_img_dir[static_cast<int>(POWER_LEVEL::LvMID)], this->photo_list_mid);
-    getPhotoList(power_img_dir[static_cast<int>(POWER_LEVEL::LvHIGH)], this->photo_list_high);
+    this->getPhotoList(power_img_dir[static_cast<int>(POWER_LEVEL::LvLOW)], this->photo_list_low);
+    this->getPhotoList(power_img_dir[static_cast<int>(POWER_LEVEL::LvMID)], this->photo_list_mid);
+    this->getPhotoList(power_img_dir[static_cast<int>(POWER_LEVEL::LvHIGH)], this->photo_list_high);
 }
 
 PowerPhoto::~PowerPhoto(){
@@ -17,9 +17,6 @@ PowerPhoto::~PowerPhoto(){
     this->photo_list_mid.shrink_to_fit();
     this->photo_list_high.clear();
     this->photo_list_high.shrink_to_fit();
-}
-
-void PowerPhoto::createPhotoList(void) {
 }
 
 void PowerPhoto::getPhotoList(const char* path, std::vector<String> &list) {
@@ -46,11 +43,11 @@ void PowerPhoto::getPhotoList(const char* path, std::vector<String> &list) {
 String* PowerPhoto::getPowerPhoto(POWER_LEVEL level) {
     String *ret;
     if (level == POWER_LEVEL::LvLOW) {
-        ret = PowerPhoto::getPhotoRandomFromList(photo_list_low);
+        ret = this->getPhotoRandomFromList(this->photo_list_low);
     } else if (level == POWER_LEVEL::LvMID) {
-        ret = PowerPhoto::getPhotoRandomFromList(photo_list_mid);
+        ret = this->getPhotoRandomFromList(this->photo_list_mid);
     } else {
-        ret = PowerPhoto::getPhotoRandomFromList(photo_list_high);
+        ret = this->getPhotoRandomFromList(this->photo_list_high);
     }
     return ret;
 }
