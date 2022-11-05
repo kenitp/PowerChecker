@@ -1,0 +1,12 @@
+[Unit]
+Description = Power Checker
+Requires = dev-ttyUSB_power.device
+After = dev-ttyUSB_power.device
+
+[Service]
+ExecStart = /usr/local/bin/power-checker
+Restart = always
+Type = simple
+
+[Install]
+WantedBy = multi-user.target

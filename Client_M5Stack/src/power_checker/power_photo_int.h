@@ -9,7 +9,6 @@ public:
     ~PowerPhoto();
 
     String* getPowerPhoto(POWER_LEVEL level);
-    void createPhotoList(void);
 
 private:
     std::vector<String> photo_list_low;
