@@ -1,7 +1,7 @@
 
 use std::thread;
 use std::time::Duration;
-
+use tokio::runtime::Runtime;
 // use std::error::Error;
 
 use serde_json::json;
@@ -14,11 +14,17 @@ use axum::{
     Router,
 };
 
+use crate::switchbot::meter::Meter;
+
 mod config;
 mod bp35c2;
+mod switchbot;
 
 static mut POWER_W: u32 = 0;
 static mut POWER_A: f64 = 0.0;
+
+static mut HUMIDITY: u32 = 0;
+static mut TEMPERATURE: f64 = 0.0;
 
 #[tokio::main]
 async fn main() {
@@ -46,6 +52,27 @@ async fn main() {
         }
     });
 
+    let rt = Runtime::new().unwrap();
+    rt.spawn(async {
+        loop {
+            // let mut freq_sec = config::GET_FREQ_SEC;
+            let mut freq_sec = 10;
+            match switchbot::meter::get_meter_status(config::SWITCHBOT_METER_DEVID, config::SWITCHBOT_TOKEN).await {
+                Ok(v) => unsafe{
+                    let meter: Meter = *v;
+                    HUMIDITY = meter.body.humidity;
+                    TEMPERATURE = meter.body.temperature;
+                }
+                Err(_) => freq_sec = 1
+            }
+            println!();
+            unsafe {
+                println!("Meter: {} ℃ / {} %", TEMPERATURE, HUMIDITY);
+            }
+            std::thread::sleep(Duration::from_secs(freq_sec));
+        }
+    });
+
     let api_url: &str = &(config::SERVER_IP.to_string() + &":".to_string() + &config::SERVER_PORT.to_string());
     let app = Router::new().route(config::API_PATH, get(handler_get_power));
     println!("Start REST API: http://{}{}", api_url, config::API_PATH);
@@ -61,7 +88,9 @@ async fn handler_get_power() -> impl IntoResponse {
             StatusCode::OK,
             Json(json!({
                 "power_w": POWER_W.to_string(),
-                "power_a": format!("{:.*}", 1, POWER_A)
+                "power_a": format!("{:.*}", 1, POWER_A),
+                "temperature": format!("{:.*}", 1, TEMPERATURE),
+                "humidity": HUMIDITY.to_string()
             })),
         )
     }    
