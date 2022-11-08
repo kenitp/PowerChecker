@@ -7,3 +7,6 @@ pub const B_ROUTE_ID: &str = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF";
 pub const B_ROUTE_PASS: &str = "FFFFFFFFFFFF";
 
 pub const GET_FREQ_SEC: u64 = 60;
+
+pub const SWITCHBOT_TOKEN: &str = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+pub const SWITCHBOT_METER_DEVID: &str = "xxxxxxxxxxxx";
