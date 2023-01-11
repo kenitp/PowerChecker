@@ -34,20 +34,37 @@ async fn main() {
     bp35c2::ctrl::connect_meter(&mut port, &meter_info);
 
     thread::spawn(move || {
+        let mut err_count: u32 = 0;
         loop {
-            let mut freq_sec = config::GET_FREQ_SEC;
+            let mut freq_sec = config::GET_FREQ_SEC_POWER;
+            let mut err_flg = false;
             match bp35c2::ctrl::read_power_w(&mut port, &meter_info) {
                 Ok(v) => unsafe{ POWER_W = v },
-                Err(_) => freq_sec = 1
+                Err(_) => {
+                    freq_sec = 1;
+                    err_flg = true;
+                }
             }
             match bp35c2::ctrl::read_power_a(&mut port, &meter_info) {
                 Ok(v) => unsafe { POWER_A = v },
-                Err(_) => freq_sec = 1
+                Err(_) => {
+                    freq_sec = 1;
+                    err_flg = true;
+                }
             }
             println!();
             unsafe {
                 println!("Power: {} W / {} A", POWER_W, POWER_A);
             }
+            match err_flg {
+                true => err_count += 1,
+                false => err_count = 0,
+            }
+            if 5 < err_count {
+                bp35c2::ctrl::connect_meter(&mut port, &meter_info);
+                println!("Maybe once disconnected. Re-connecting...");
+            }
+
             std::thread::sleep(Duration::from_secs(freq_sec));
         }
     });
@@ -55,8 +72,7 @@ async fn main() {
     let rt = Runtime::new().unwrap();
     rt.spawn(async {
         loop {
-            // let mut freq_sec = config::GET_FREQ_SEC;
-            let mut freq_sec = 10;
+            let mut freq_sec = config::GET_FREQ_SEC_SB_METER;
             match switchbot::meter::get_meter_status(config::SWITCHBOT_METER_DEVID, config::SWITCHBOT_TOKEN).await {
                 Ok(v) => unsafe{
                     let meter: Meter = *v;
