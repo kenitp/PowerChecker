@@ -48,8 +48,10 @@ pub fn rx_command(port: &mut Box<dyn SerialPort>) -> Result<Vec<String>, Box<dyn
                 for index in 0..t {
                     buf.push(buf_tmp[index]);
                 }
-                if (buf[buf.len()-2] == 0x0d) && (buf[buf.len()-1] ==0x0a) {
-                    break;
+                if 2 <= buf.len() {
+                    if (buf[buf.len()-2] == 0x0d) && (buf[buf.len()-1] ==0x0a) {
+                        break;
+                    }
                 }
             }
             Err(e) => {

@@ -194,6 +194,22 @@ fn wait_resp_event20(port: &mut Box<dyn SerialPort>) -> MeterInfo {
     }
 }
 
+fn check_event21(cmd: &Vec<String>) -> Result<(), ()>{
+    if 0 < cmd.len(){
+        for i in cmd {
+            if Some(0) <= i.find("EVENT 21"){
+                let v: Vec<&str> = i.split(' ').collect();
+                if v[4] == "01"{
+                    return Err(());
+                } else {
+                    return Ok(());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn wait_resp_event25(port: &mut Box<dyn SerialPort>){
     let mut event25 = false;
     loop {
@@ -215,6 +231,7 @@ fn wait_resp_event25(port: &mut Box<dyn SerialPort>){
         }
     }
 }
+
 
 fn parse_erxudp(cmd: &Vec<String>) -> Result<Vec<String>, ()> {
     let mut params: Vec<String> = Vec::new();
@@ -247,6 +264,13 @@ fn wait_resp_erxudp(port: &mut Box<dyn SerialPort>, send_cmd: &[u8], time_ms: u6
             Err(e) => {
                 println!("ERROR: {}", e);
                 return Err(std::io::ErrorKind::TimedOut);
+            }
+        }
+        match check_event21(&cmd){
+            Ok(_) => {}
+            Err(_) => {
+                println!("WARN: Fali to send ECONETUDP");
+                return Err(std::io::ErrorKind::NotConnected)
             }
         }
         let mut params: Vec<String> = Vec::new();
