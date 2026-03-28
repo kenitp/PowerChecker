@@ -1,0 +1,12 @@
+[build]
+target = "xtensa-esp32-none-elf"
+
+[env]
+ESP_LOG = "INFO"
+
+[target.xtensa-esp32-none-elf]
+runner = "espflash flash --baud 2000000 --monitor"
+rustflags = ["-C", "link-arg=-Wl,-Tlinkall.x"]
+
+[unstable]
+build-std = ["alloc", "core"]

@@ -1,0 +1,505 @@
+// Power Checker Client — M5Stack Fire UI
+// Display: 320x240 (ILI9341)
+
+// ── Global dark theme ────────────────────────────────────────────────────────
+global Theme {
+    // Backgrounds
+    out property <color> bg:         #080c18;
+    out property <color> surface:    #0d1128;
+    out property <color> header:     #09101f;
+    out property <color> panel:      #0c1030;
+
+    // Accent
+    out property <color> cyan:       #00d4ff;
+    out property <color> green:      #00e87a;
+    out property <color> yellow:     #ffd02e;
+    out property <color> red:        #ff3355;
+    out property <color> dim-cyan:   #003a50;
+
+    // Text
+    out property <color> text-hi:    #dde4ff;
+    out property <color> text-lo:    #4a5888;
+    out property <color> text-dim:   #222a48;
+
+    // Lines / borders
+    out property <color> border:     #1b2040;
+    out property <color> divider:    #0e1428;
+}
+
+// ── Enums exposed to Rust ─────────────────────────────────────────────────────
+export enum DisplayMode { Power, Clock, Photo }
+export enum PowerLevel  { Unknown, Low, Mid, High }
+
+// ── Reusable: header bar ──────────────────────────────────────────────────────
+component Header {
+    in property <string> title;
+    in property <bool>   wifi-ok;
+
+    width: 320px;
+    height: 28px;
+    Rectangle {
+        width: 320px; height: 28px;
+        background: Theme.header;
+
+        Text {
+            x: 10px; y: 7px;
+            text: root.title;
+            color: Theme.cyan;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        // WiFi badge
+        Rectangle {
+            x: 262px; y: 5px;
+            width: 48px; height: 18px;
+            border-radius: 4px;
+            background: wifi-ok ? #061c10 : #1c0608;
+            border-width: 1px;
+            border-color: wifi-ok ? #006030 : #600018;
+
+            Text {
+                x: 0; y: 3px; width: 48px;
+                horizontal-alignment: center;
+                text: wifi-ok ? "WiFi OK" : "No WiFi";
+                color: wifi-ok ? Theme.green : Theme.red;
+                font-size: 9px;
+            }
+        }
+    }
+}
+
+// ── Reusable: mode tab bar ────────────────────────────────────────────────────
+component ModeTabs {
+    in property <DisplayMode> mode;
+
+    width: 320px;
+    height: 28px;
+    property <color> c-power: mode == DisplayMode.Power  ? Theme.cyan : Theme.text-lo;
+    property <color> c-clock: mode == DisplayMode.Clock  ? Theme.cyan : Theme.text-lo;
+    property <color> c-photo: mode == DisplayMode.Photo  ? Theme.cyan : Theme.text-lo;
+    property <color> bg-p:    mode == DisplayMode.Power  ? Theme.dim-cyan : transparent;
+    property <color> bg-c:    mode == DisplayMode.Clock  ? Theme.dim-cyan : transparent;
+    property <color> bg-ph:   mode == DisplayMode.Photo  ? Theme.dim-cyan : transparent;
+
+    Rectangle {
+        width: 320px; height: 28px;
+        background: Theme.header;
+        border-color: Theme.border; border-width: 1px;
+
+        // POWER tab
+        Rectangle { x: 0;     y: 0; width: 106px; height: 28px; background: bg-p; border-radius: 0;
+            Text { x: 0; y: 8px; width: 106px; horizontal-alignment: center;
+                   text: "POWER"; color: c-power; font-size: 10px;
+                   font-weight: mode == DisplayMode.Power ? 700 : 400; } }
+        Rectangle { x: 106px; y: 4px; width: 1px; height: 20px; background: Theme.border; }
+        // CLOCK tab
+        Rectangle { x: 107px; y: 0; width: 106px; height: 28px; background: bg-c; border-radius: 0;
+            Text { x: 0; y: 8px; width: 106px; horizontal-alignment: center;
+                   text: "CLOCK"; color: c-clock; font-size: 10px;
+                   font-weight: mode == DisplayMode.Clock ? 700 : 400; } }
+        Rectangle { x: 213px; y: 4px; width: 1px; height: 20px; background: Theme.border; }
+        // PHOTO tab
+        Rectangle { x: 214px; y: 0; width: 106px; height: 28px; background: bg-ph; border-radius: 0;
+            Text { x: 0; y: 8px; width: 106px; horizontal-alignment: center;
+                   text: "PHOTO"; color: c-photo; font-size: 10px;
+                   font-weight: mode == DisplayMode.Photo ? 700 : 400; } }
+    }
+}
+
+// ── Main application window ───────────────────────────────────────────────────
+export component AppWindow inherits Window {
+    preferred-width:  320px;
+    preferred-height: 240px;
+    background: Theme.bg;
+    no-frame: true;
+
+    // ── State: mode ───────────────────────────────────────────────────────────
+    in-out property <DisplayMode> mode: DisplayMode.Power;
+
+    // ── State: power data ─────────────────────────────────────────────────────
+    in property <string>     power-watts:   "---";
+    in property <string>     power-amps:    "--.-";
+    in property <PowerLevel> power-level:   PowerLevel.Unknown;
+    in property <float>      power-ratio:   0.0;   // 0.0–1.0 (relative to 2000W max)
+    in property <string>     power-pct:     "--%";  // pre-formatted percentage string
+
+    // ── State: clock data ─────────────────────────────────────────────────────
+    in property <string> clock-hhmm: "00:00";
+    in property <string> clock-ss:   "00";
+    in property <string> clock-date: "----/--/--";
+    in property <string> clock-dow:  "---";
+
+    // ── State: photo ──────────────────────────────────────────────────────────
+    in property <bool>   sd-ok:       false;
+    in property <string> photo-label: "No SD";
+    in property <bool>   photo-drawing: false;
+
+    // ── State: status ─────────────────────────────────────────────────────────
+    in property <bool>   wifi-ok:     false;
+    in property <string> last-update: "--:--:--";
+    in property <string> status-msg:  "Initializing...";
+
+    // ── Computed: level color ─────────────────────────────────────────────────
+    property <color> lv-color:
+        power-level == PowerLevel.High    ? Theme.red    :
+        power-level == PowerLevel.Mid     ? Theme.yellow :
+        power-level == PowerLevel.Low     ? Theme.green  :
+        Theme.text-lo;
+
+    // ── Key handling (Button B=Return cycles mode; Button C=RightArrow refreshes)
+    forward-focus: key-handler;
+    key-handler := FocusScope {
+        width: 0; height: 0;
+        key-pressed(event) => {
+            if (event.text == Key.Return) {
+                if (root.mode == DisplayMode.Power) {
+                    root.mode = DisplayMode.Clock;
+                } else if (root.mode == DisplayMode.Clock) {
+                    root.mode = DisplayMode.Photo;
+                } else {
+                    root.mode = DisplayMode.Power;
+                }
+                root.mode-changed(root.mode);
+                return accept;
+            }
+            if (event.text == Key.RightArrow) {
+                if (root.mode == DisplayMode.Photo) {
+                    root.photo-next();
+                } else {
+                    root.force-refresh();
+                }
+                return accept;
+            }
+            if (event.text == Key.LeftArrow) {
+                if (root.mode == DisplayMode.Photo) {
+                    root.photo-prev();
+                }
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    // ── Callbacks to Rust ─────────────────────────────────────────────────────
+    callback force-refresh();
+    callback photo-next();
+    callback photo-prev();
+    callback mode-changed(DisplayMode);
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // POWER screen
+    // ══════════════════════════════════════════════════════════════════════════
+    if mode == DisplayMode.Power: Rectangle {
+        width: 320px; height: 240px;
+        background: Theme.bg;
+
+        // Header
+        Header { x: 0; y: 0; title: "POWER CHECKER"; wifi-ok: root.wifi-ok; }
+
+        // Power-level accent stripe
+        Rectangle {
+            x: 0; y: 28px; width: 320px; height: 3px;
+            background: lv-color;
+            animate background { duration: 600ms; }
+        }
+
+        // ── Left panel: numeric values ────────────────────────────────────────
+        Rectangle {
+            x: 0; y: 31px; width: 212px; height: 170px;
+
+            // ── Watts ──
+            Text {
+                x: 14px; y: 10px;
+                text: "Power (W)";
+                color: Theme.text-lo;
+                font-size: 11px;
+            }
+            Text {
+                x: 10px; y: 26px;
+                text: root.power-watts;
+                color: lv-color;
+                font-size: 54px;
+                font-weight: 700;
+                animate color { duration: 600ms; }
+            }
+
+            // ── Divider ──
+            Rectangle { x: 14px; y: 104px; width: 180px; height: 1px; background: Theme.divider; }
+
+            // ── Amps ──
+            Text {
+                x: 14px; y: 112px;
+                text: "Current (A)";
+                color: Theme.text-lo;
+                font-size: 11px;
+            }
+            Text {
+                x: 10px; y: 128px;
+                text: root.power-amps;
+                color: #7799ee;
+                font-size: 34px;
+                font-weight: 600;
+            }
+        }
+
+        // ── Right panel: level indicator ──────────────────────────────────────
+        Rectangle {
+            x: 216px; y: 35px; width: 98px; height: 164px;
+            background: Theme.panel;
+            border-radius: 6px;
+            border-width: 1px;
+            border-color: Theme.border;
+
+            Text {
+                x: 0; y: 8px; width: 98px;
+                horizontal-alignment: center;
+                text: "LEVEL";
+                color: Theme.text-dim;
+                font-size: 9px;
+                font-weight: 700;
+            }
+
+            // HIGH box
+            Rectangle {
+                x: 7px; y: 26px; width: 84px; height: 34px;
+                border-radius: 5px;
+                background: power-level == PowerLevel.High ? #3a0811 : Theme.surface;
+                border-width: 1px;
+                border-color: power-level == PowerLevel.High ? Theme.red : Theme.border;
+                animate background   { duration: 400ms; }
+                animate border-color { duration: 400ms; }
+                Text {
+                    x: 0; y: 9px; width: 84px;
+                    horizontal-alignment: center;
+                    text: "HIGH";
+                    color: power-level == PowerLevel.High ? Theme.red : Theme.text-dim;
+                    font-size: 13px;
+                    font-weight: power-level == PowerLevel.High ? 700 : 400;
+                    animate color { duration: 400ms; }
+                }
+            }
+
+            // MID box
+            Rectangle {
+                x: 7px; y: 67px; width: 84px; height: 34px;
+                border-radius: 5px;
+                background: power-level == PowerLevel.Mid ? #2c1e00 : Theme.surface;
+                border-width: 1px;
+                border-color: power-level == PowerLevel.Mid ? Theme.yellow : Theme.border;
+                animate background   { duration: 400ms; }
+                animate border-color { duration: 400ms; }
+                Text {
+                    x: 0; y: 9px; width: 84px;
+                    horizontal-alignment: center;
+                    text: "MID";
+                    color: power-level == PowerLevel.Mid ? Theme.yellow : Theme.text-dim;
+                    font-size: 13px;
+                    font-weight: power-level == PowerLevel.Mid ? 700 : 400;
+                    animate color { duration: 400ms; }
+                }
+            }
+
+            // LOW box
+            Rectangle {
+                x: 7px; y: 108px; width: 84px; height: 34px;
+                border-radius: 5px;
+                background: power-level == PowerLevel.Low ? #00200c : Theme.surface;
+                border-width: 1px;
+                border-color: power-level == PowerLevel.Low ? Theme.green : Theme.border;
+                animate background   { duration: 400ms; }
+                animate border-color { duration: 400ms; }
+                Text {
+                    x: 0; y: 9px; width: 84px;
+                    horizontal-alignment: center;
+                    text: "LOW";
+                    color: power-level == PowerLevel.Low ? Theme.green : Theme.text-dim;
+                    font-size: 13px;
+                    font-weight: power-level == PowerLevel.Low ? 700 : 400;
+                    animate color { duration: 400ms; }
+                }
+            }
+        }
+
+        // ── Status bar (y: 197–212) — progress bar + update time ────────────────
+        // 15 px strip above the mode-tab bar
+        Rectangle {
+            x: 0; y: 197px; width: 320px; height: 15px;
+            background: Theme.header;
+
+            // Progress bar track (6 px tall)
+            Rectangle {
+                x: 10px; y: 4px; width: 200px; height: 7px;
+                background: #101830;
+                border-radius: 3px;
+
+                Rectangle {
+                    x: 0; y: 0;
+                    width: clamp(root.power-ratio * 200px, 0px, 200px);
+                    height: 7px;
+                    background: lv-color;
+                    border-radius: 3px;
+                    animate width      { duration: 1200ms; easing: ease-out; }
+                    animate background { duration: 600ms; }
+                }
+            }
+
+            // Percentage label
+            Text {
+                x: 216px; y: 2px;
+                text: root.power-pct;
+                color: lv-color;
+                font-size: 10px;
+                font-weight: 700;
+                animate color { duration: 600ms; }
+            }
+
+            // Last update / status
+            Text {
+                x: 256px; y: 2px;
+                text: root.status-msg;
+                color: Theme.text-dim;
+                font-size: 9px;
+            }
+        }
+
+        // Mode tabs (y: 212–240 = 28 px)
+        ModeTabs { x: 0; y: 212px; mode: root.mode; }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // CLOCK screen
+    // ══════════════════════════════════════════════════════════════════════════
+    if mode == DisplayMode.Clock: Rectangle {
+        width: 320px; height: 240px;
+        background: #050810;
+
+        Header { x: 0; y: 0; title: "DIGITAL CLOCK"; wifi-ok: root.wifi-ok; }
+
+        // Top accent line
+        Rectangle { x: 0; y: 28px; width: 320px; height: 2px; background: #060e20; }
+
+        // Date + day of week
+        Text {
+            x: 16px; y: 38px;
+            text: root.clock-date;
+            color: #3a5878;
+            font-size: 14px;
+        }
+        Text {
+            x: 260px; y: 40px;
+            text: root.clock-dow;
+            color: #1e3a54;
+            font-size: 13px;
+        }
+
+        // Time HH:MM (large)
+        Text {
+            x: 10px; y: 60px;
+            text: root.clock-hhmm;
+            color: Theme.cyan;
+            font-size: 82px;
+            font-weight: 700;
+        }
+
+        // Seconds (right side, vertically aligned with time)
+        Text {
+            x: 264px; y: 132px;
+            text: root.clock-ss;
+            color: #00607a;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        // Thin separator
+        Rectangle { x: 16px; y: 168px; width: 288px; height: 1px; background: #0c1628; }
+
+        // NTP status
+        Text {
+            x: 16px; y: 175px;
+            text: wifi-ok ? "NTP synced" : "NTP pending";
+            color: wifi-ok ? #1a4a30 : #3a2010;
+            font-size: 10px;
+        }
+
+        ModeTabs { x: 0; y: 212px; mode: root.mode; }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PHOTO screen  (BMP display from SD card, drawn by Rust via set_pixels)
+    // ══════════════════════════════════════════════════════════════════════════
+    if mode == DisplayMode.Photo: Rectangle {
+        width: 320px; height: 240px;
+        background: #030508;
+
+        if !root.sd-ok: Rectangle {
+            width: 320px; height: 240px;
+
+            Header { x: 0; y: 0; title: "PHOTO FRAME"; wifi-ok: root.wifi-ok; }
+
+            Rectangle {
+                x: 40px; y: 50px; width: 240px; height: 148px;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: #1a1e38;
+                background: #08090f;
+
+                Rectangle {
+                    x: 4px; y: 4px; width: 232px; height: 140px;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: Theme.border;
+                    background: #050608;
+
+                    Text {
+                        x: 0; y: 48px; width: 232px;
+                        horizontal-alignment: center;
+                        text: "SD Card Required";
+                        color: #2a3060;
+                        font-size: 13px;
+                    }
+                    Text {
+                        x: 0; y: 68px; width: 232px;
+                        horizontal-alignment: center;
+                        text: "Place BMP files in";
+                        color: #1a1e38;
+                        font-size: 10px;
+                    }
+                    Text {
+                        x: 0; y: 82px; width: 232px;
+                        horizontal-alignment: center;
+                        text: "/IMG/*.BMP";
+                        color: #1e2848;
+                        font-size: 10px;
+                    }
+                }
+            }
+
+            ModeTabs { x: 0; y: 212px; mode: root.mode; }
+        }
+
+        if root.sd-ok && !root.photo-drawing: Rectangle {
+            width: 320px; height: 240px;
+
+            // Photo info overlay at bottom
+            Rectangle {
+                x: 0; y: 218px; width: 320px; height: 22px;
+                background: #000000c0;
+
+                Text {
+                    x: 10px; y: 4px;
+                    text: root.photo-label;
+                    color: #aabbdd;
+                    font-size: 10px;
+                }
+                Text {
+                    x: 220px; y: 4px; width: 90px;
+                    horizontal-alignment: right;
+                    text: "A:Prev  C:Next";
+                    color: #556688;
+                    font-size: 9px;
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,76 @@
+[package]
+name = "power-checker-client"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "power-checker-client"
+path = "src/main.rs"
+
+[dependencies]
+# ── Slint UI framework (crates.io) ─────────────────────────────────────────────
+slint = { version = "1.15.1", default-features = false, features = [
+    "compat-1-2",
+    "renderer-software",
+    "unsafe-single-threaded",
+    "libm",
+] }
+
+# ── ESP32 Hardware Abstraction Layer ──────────────────────────────────────────
+esp-hal               = { version = "=1.0.0-rc.0", features = ["esp32", "unstable"] }
+esp-alloc             = "0.8.0"
+esp-println           = { version = "0.15.0", default-features = false, features = ["auto", "log-04", "esp32"] }
+esp-backtrace         = { version = "0.17.0", default-features = false, features = ["exception-handler", "panic-handler", "println", "esp32"] }
+esp-bootloader-esp-idf = { version = "0.2.0", features = ["esp32"] }
+
+# ── Display (ILI9342C via SPI) + SD card (shared SPI bus) ─────────────────────
+mipidsi              = "0.9.0"
+embedded-hal         = "1.0.0"
+embedded-hal-bus     = "0.3.0"
+embedded-graphics-core = "0.4"
+embedded-graphics    = "0.8"
+embedded-sdmmc       = { version = "0.9.0", default-features = false }
+
+# ── WiFi & Networking ─────────────────────────────────────────────────────────
+# 0.14.x は esp-hal 1.0.0-beta.1 向け。esp-hal 1.0.0-rc.0 では 0.15+ が必要。
+# `default-features = false` だけだと `builtin-scheduler` が外れ、
+# esp_wifi_preempt_* などが未定義参照になる（esp-hal の __esp_wifi_builtin_scheduler が必要）。
+esp-wifi = { version = "0.15.1", default-features = false, features = [
+    "builtin-scheduler",
+    "esp-alloc",
+    "esp32",
+    "wifi",
+    "smoltcp",
+] }
+smoltcp = { version = "0.12.0", default-features = false, features = [
+    "medium-ethernet",
+    "proto-ipv4",
+    "proto-dhcpv4",
+    "socket-tcp",
+    "socket-udp",
+    "socket-dhcpv4",
+] }
+
+# ── JSON parsing ──────────────────────────────────────────────────────────────
+serde            = { version = "1.0", default-features = false, features = ["derive"] }
+serde-json-core  = "0.6"
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+heapless         = "0.8"
+critical-section = "1.1"
+static_cell      = "2.1"
+log              = { version = "0.4", default-features = false }
+
+[build-dependencies]
+dotenv   = "0.15"
+slint-build = { version = "1.15.1" }
+
+[profile.dev]
+opt-level = "s"
+debug = true
+
+[profile.release]
+opt-level = "s"
+codegen-units = 1
+lto = "fat"
+debug = false
