@@ -17,8 +17,8 @@ void setup() {
     M5.Lcd.setBrightness(10);
     M5.Lcd.setTextFont(2);
     M5.Lcd.setTextSize(1);
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
-    while (WiFi.status() != WL_CONNECTED){
+    connect_wifi(WIFI_SSID, WIFI_PASS);
+    while (get_wifi_status() != WL_CONNECTED){
         delay(500);
         M5.Lcd.print('.');
     }

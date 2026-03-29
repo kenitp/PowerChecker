@@ -2,6 +2,7 @@
 #include <sstream>
 #include "powerCheck_int.h"
 #include "power_photo_int.h"
+#include "wifi_connect.h"
 
 static DynamicJsonDocument doc(4096);
 
@@ -27,13 +28,14 @@ void taskPower(void *args) {
                 bool isDrawImg = (mode == BUTTON_MODE::POWER_IMG);
                 DrawPower dp = DrawPower(isDrawImg, pp);
                 Serial.println("[Debug] Update Power Values");
-                if (WiFi.status() != WL_CONNECTED) {
+                if (get_wifi_status() != WL_CONNECTED) {
                     const char* errStr = "WiFi not connected!";
                     dp.drawErr(errStr);
-                    delay(1000);
+                    delay(30000);
+                    ESP.restart();
                 }
 
-                if ((WiFi.status() == WL_CONNECTED)) {
+                if ((get_wifi_status() == WL_CONNECTED)) {
                     HTTPClient http;
                     http.begin(POWER_CHECKER_URL);
                     int httpCode = http.GET();

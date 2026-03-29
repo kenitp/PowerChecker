@@ -17,6 +17,28 @@ B ルートサービスを使用して自宅の電力使用量をリアルタイ
   - M5Stack FIRE (Basic 等でも可)
   - PlatformIO (VSCode, C++)
 
+## Setup
+
+### リポジトリのクローン
+
+このリポジトリは git submodule を使用しています。クローン時にサブモジュールも同時に取得するには:
+
+```console
+$ git clone --recurse-submodules <リポジトリURL>
+```
+
+既にクローン済みの場合は以下でサブモジュールを初期化・取得:
+
+```console
+$ git submodule update --init --recursive
+```
+
+サブモジュールを最新に更新する場合:
+
+```console
+$ git submodule update --remote
+```
+
 ## Usage
 
 - Server
