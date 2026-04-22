@@ -22,6 +22,9 @@ use crate::{
     POWER_CHECKER_URL, NTP_HOST_IP, NTP_PORT, JST_OFFSET_SECS,
 };
 
+const HTTP_CONNECT_TIMEOUT_MS: u64 = 15_000;
+const HTTP_RECV_TIMEOUT_MS: u64 = 15_000;
+
 #[derive(Debug)]
 pub enum NetworkError {
     Config,
@@ -265,7 +268,7 @@ impl NetworkState {
                 })?;
         }
 
-        let deadline = now_ms + 5_000;
+        let deadline = now_ms + HTTP_CONNECT_TIMEOUT_MS;
         {
             use embedded_hal::delay::DelayNs;
             let mut delay = esp_hal::delay::Delay::new();
@@ -277,7 +280,10 @@ impl NetworkState {
                     break;
                 }
                 if cur > deadline {
-                    warn!("[HTTP] TCP connect timeout (5 s)");
+                    warn!(
+                        "[HTTP] TCP connect timeout ({} s)",
+                        HTTP_CONNECT_TIMEOUT_MS / 1000
+                    );
                     return Err(NetworkError::Timeout);
                 }
                 delay.delay_ms(5u32);
@@ -299,7 +305,8 @@ impl NetworkState {
 
         let mut body_buf = [0u8; 512];
         let mut body_len = 0usize;
-        let recv_deadline = Instant::now().duration_since_epoch().as_millis() + 4_000;
+        let recv_deadline =
+            Instant::now().duration_since_epoch().as_millis() + HTTP_RECV_TIMEOUT_MS;
 
         {
             use embedded_hal::delay::DelayNs;
@@ -324,7 +331,11 @@ impl NetworkState {
                     }
                 }
                 if cur > recv_deadline {
-                    warn!("[HTTP] Receive timeout (4 s), got {} bytes", body_len);
+                    warn!(
+                        "[HTTP] Receive timeout ({} s), got {} bytes",
+                        HTTP_RECV_TIMEOUT_MS / 1000,
+                        body_len
+                    );
                     break;
                 }
                 delay.delay_ms(5u32);

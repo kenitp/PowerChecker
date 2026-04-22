@@ -1,5 +1,6 @@
 #include <sstream>
 #include "draw_power_int.h"
+#include "pixel_shift.h"
 
 String DrawPower::last_power_w = "0";
 String DrawPower::last_power_a = "0.0";
@@ -60,19 +61,37 @@ void DrawPower::drawErr(const char *str){
 void DrawPower::drawTitle(void) {
     M5.Lcd.setTextFont(titleFont);
     M5.Lcd.setTextSize(titleSize);
+    M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
     M5.Lcd.println("Electricity Usage");
     return;
 }
 
 void DrawPower::drawValues(String *power_w, String *power_a) {
+    // 電力値をパース
+    int num = 0;
+    std::istringstream iss(power_w->c_str());
+    iss >> num;
+
+    // 電力レベルに応じた色（低:緑 / 中:オレンジ / 高:赤）
+    uint16_t wColor;
+    if (num < 300) {
+        wColor = 0x07E0;   // グリーン
+    } else if (num < 1200) {
+        wColor = TFT_ORANGE;
+    } else {
+        wColor = TFT_RED;
+    }
+
     M5.Lcd.setTextFont(valueFont);
     M5.Lcd.setTextSize(valueSize);
 
+    M5.Lcd.setTextColor(wColor, TFT_BLACK);
     M5.Lcd.setCursor(M5.Lcd.getCursorX()+w_offsetX, M5.Lcd.getCursorY()+w_offsetY);
     M5.Lcd.printf("%4s ", power_w);
     int16_t curW_unit_X = M5.Lcd.getCursorX();
     M5.Lcd.println("W");
 
+    M5.Lcd.setTextColor(0xBDF7, TFT_BLACK);  // ライトグレー
     M5.Lcd.setCursor(M5.Lcd.getCursorX()+a_offsetX, M5.Lcd.getCursorY()+a_offsetY);
     M5.Lcd.printf("%4s ", power_a);
     int16_t curA_unit_X = M5.Lcd.getCursorX();
@@ -100,10 +119,10 @@ void DrawPower::drawImage(String *power_w) {
     }
     if (img_path->indexOf(".jpg") != -1) {
         Serial.printf("[Debug] drawJpg = %s\r\n", img_path->c_str());
-        M5.Lcd.drawJpgFile(SD, img_path->c_str(), 185, 55);
+        M5.Lcd.drawJpgFile(SD, img_path->c_str(), 185 + PixelShift::getX(), 55 + PixelShift::getY());
     } else {
         Serial.printf("[Debug] drawPng = %s\r\n", img_path->c_str());
-        M5.Lcd.drawPngFile(SD, img_path->c_str(), 185, 55);
+        M5.Lcd.drawPngFile(SD, img_path->c_str(), 185 + PixelShift::getX(), 55 + PixelShift::getY());
     }
     return;
 }
