@@ -38,6 +38,7 @@ void taskPower(void *args) {
                 if ((get_wifi_status() == WL_CONNECTED)) {
                     HTTPClient http;
                     http.begin(POWER_CHECKER_URL);
+                    http.setTimeout(15000);
                     int httpCode = http.GET();
 
                     if (httpCode > 0) {

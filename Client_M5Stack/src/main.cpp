@@ -1,4 +1,5 @@
 #include "main.h"
+#include "pixel_shift.h"
 
 void setup() {
     M5.begin();
@@ -14,7 +15,7 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(GPIO_NUM_37), ButtonMode::onRightButton, FALLING);
 
     // M5.Lcd.setCursor(20, 60);
-    M5.Lcd.setBrightness(10);
+    M5.Lcd.setBrightness(1);
     M5.Lcd.setTextFont(2);
     M5.Lcd.setTextSize(1);
     connect_wifi(WIFI_SSID, WIFI_PASS);
@@ -38,4 +39,5 @@ void setup() {
 void loop() {
     delay(3000);
     ButtonMode::checkSdExist();
+    PixelShift::tick();
 }
