@@ -1,0 +1,15 @@
+target/
+.git/
+.env
+.env.example
+*.log
+.vscode/
+
+# ホスト専用ファイル
+docker-compose.yml
+Dockerfile
+.dockerignore
+.gitignore
+install.sh
+99-com.rules
+README.md

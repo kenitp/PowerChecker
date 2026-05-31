@@ -9,12 +9,12 @@ use regex::Regex;
 use crate::bp35c2::device;
 
 pub struct MeterInfo {
-    channel: String,
-    pan_id: String,
-    meter_mac_addr: String,
-    meter_ip6_addr: String,
-    event20: bool,
-    event22: bool,
+    pub channel: String,
+    pub pan_id: String,
+    pub meter_mac_addr: String,
+    pub meter_ip6_addr: String,
+    pub event20: bool,
+    pub event22: bool,
 }
 
 const GET_POWER_W:[u8;16] = [0x10, 0x81, 0x00, 0x01, 0x05, 0xFF, 0x01, 0x02, 0x88, 0x01, 0x62, 0x01, 0xE7, 0x00, 0x0d, 0x0a];
@@ -95,30 +95,64 @@ pub fn connect_meter(port: &mut Box<dyn SerialPort>, meterinfo: &MeterInfo) {
 
 pub fn read_power_w(port: &mut Box<dyn SerialPort>, meterinfo: &MeterInfo) -> Result<u32, std::io::ErrorKind>{
     let rcv_udp;
+    
+    println!("DEBUG: Starting power W read...");
     match send_echonet_udp(port, &meterinfo.meter_ip6_addr, &GET_POWER_W) {
         Ok(_) => {
-            rcv_udp = wait_resp_erxudp(port, &GET_POWER_W, 10000)?
+            match wait_resp_erxudp(port, &GET_POWER_W, 10000) {
+                Ok(udp_data) => {
+                    rcv_udp = udp_data;
+                },
+                Err(e) => {
+                    println!("ERROR: Failed to receive UDP response - {:?}", e);
+                    return Err(e)
+                }
+            }
         },
         Err(e) => {
-            println!("err value = {}", e);
+            println!("ERROR: Failed to send ECHONET UDP packet - {}", e);
             return Err(std::io::ErrorKind::InvalidData)
         }
     }
-    extract_power_w_from_udp(&rcv_udp)
+    
+    match extract_power_w_from_udp(&rcv_udp) {
+        Ok(power_w) => Ok(power_w),
+        Err(e) => {
+            println!("ERROR: Failed to extract power W from UDP data - {:?}", e);
+            Err(e)
+        }
+    }
 }
 
 pub fn read_power_a(port: &mut Box<dyn SerialPort>, meterinfo: &MeterInfo) -> Result<f64, std::io::ErrorKind>{
     let rcv_udp;
+    
+    println!("DEBUG: Starting power A read...");
     match send_echonet_udp(port, &meterinfo.meter_ip6_addr, &GET_POWER_A) {
         Ok(_) => {
-            rcv_udp = wait_resp_erxudp(port, &GET_POWER_A, 10000)?
+            match wait_resp_erxudp(port, &GET_POWER_A, 10000) {
+                Ok(udp_data) => {
+                    rcv_udp = udp_data;
+                },
+                Err(e) => {
+                    println!("ERROR: Failed to receive UDP response - {:?}", e);
+                    return Err(e)
+                }
+            }
         },
         Err(e) => {
-            println!("err value = {}", e);
+            println!("ERROR: Failed to send ECHONET UDP packet - {}", e);
             return Err(std::io::ErrorKind::InvalidData)
         }
     }
-    extract_power_a_from_udp(&rcv_udp)
+    
+    match extract_power_a_from_udp(&rcv_udp) {
+        Ok(power_a) => Ok(power_a),
+        Err(e) => {
+            println!("ERROR: Failed to extract power A from UDP data - {:?}", e);
+            Err(e)
+        }
+    }
 }
 
 fn wait_resp_ok(port: &mut Box<dyn SerialPort>) -> Result<(), std::io::ErrorKind> {
@@ -133,7 +167,7 @@ fn wait_resp_ok(port: &mut Box<dyn SerialPort>) -> Result<(), std::io::ErrorKind
         if 0 < cmd.len(){
             for i in cmd {
                 if i == "OK" {
-                    return Ok(());
+                    return Ok(())
                 }
             }
         }
@@ -194,20 +228,36 @@ fn wait_resp_event20(port: &mut Box<dyn SerialPort>) -> MeterInfo {
     }
 }
 
-fn check_event21(cmd: &Vec<String>) -> Result<(), ()>{
+#[derive(Debug, PartialEq)]
+pub enum Event21Status {
+    Success,    // 00: 成功
+    Retry,      // 01: 送信リトライが必要
+    Error,      // その他: エラー
+}
+
+fn check_event21(cmd: &Vec<String>) -> Result<Event21Status, ()>{
     if 0 < cmd.len(){
         for i in cmd {
             if Some(0) <= i.find("EVENT 21"){
                 let v: Vec<&str> = i.split(' ').collect();
-                if v[4] == "01"{
-                    return Err(());
+                // EVENT 21の応答コード: 00=成功, 01=送信リトライが必要, その他=エラー
+                if v.len() > 4 {
+                    match v[4] {
+                        "00" => return Ok(Event21Status::Success),
+                        "01" => return Ok(Event21Status::Retry),
+                        _ => {
+                            println!("WARN: EVENT 21 received with unexpected status: {:?}", v);
+                            return Ok(Event21Status::Error)
+                        }
+                    }
                 } else {
-                    return Ok(());
+                    println!("WARN: EVENT 21 received with insufficient parameters: {:?}", v);
+                    return Ok(Event21Status::Error)
                 }
             }
         }
     }
-    Ok(())
+    Ok(Event21Status::Success)
 }
 
 fn wait_resp_event25(port: &mut Box<dyn SerialPort>){
@@ -248,7 +298,7 @@ fn parse_erxudp(cmd: &Vec<String>) -> Result<Vec<String>, ()> {
         }
     }
     if params.len() == 0{
-        return Err(());
+        return Err(())
     }
     Ok(params)
 }
@@ -256,42 +306,63 @@ fn parse_erxudp(cmd: &Vec<String>) -> Result<Vec<String>, ()> {
 fn wait_resp_erxudp(port: &mut Box<dyn SerialPort>, send_cmd: &[u8], time_ms: u64) -> Result<String, std::io::ErrorKind> {
     let mut count: u64 = 0;
     let rcv_udp: String;
+    let expected_cmd = send_cmd[12];
+    
     loop {
+        let retry_time = 2000;
         let resp = device::rx_command(port);
         let cmd: Vec<String>;
         match resp {
-            Ok(v) => cmd = v,
+            Ok(v) => {
+                cmd = v;
+            },
             Err(e) => {
-                println!("ERROR: {}", e);
-                return Err(std::io::ErrorKind::TimedOut);
+                println!("ERROR: Serial communication failed - {}", e);
+                return Err(std::io::ErrorKind::TimedOut)
             }
         }
-        match check_event21(&cmd){
-            Ok(_) => {}
-            Err(_) => {
-                println!("WARN: Fali to send ECONETUDP");
-                return Err(std::io::ErrorKind::NotConnected)
-            }
-        }
-        let mut params: Vec<String> = Vec::new();
+        
+        // ERXUDPレスポンス解析
+        let params: Vec<String>;
         match parse_erxudp(&cmd){
             Ok(v) => {
                 params = v;
             }
-            Err(_) => ()
-        }
-        if 0 < params.len() {
-            let rcv_cmd = u8::from_str_radix(&extract_str(&(params[9]), 24, 25), 16).unwrap_or(0);
-            if rcv_cmd == send_cmd[12] {
-                rcv_udp = String::from(&(params[9]));
-                break;
+            Err(_) => {
+                // ERXUDPレスポンスが見つからない場合は次のループへ
+                std::thread::sleep(Duration::from_millis(100));
+                count = count + 1;
+                if time_ms < (retry_time * count){
+                    println!("ERROR: Timeout waiting for ERXUDP response ({}ms elapsed)", retry_time * count);
+                    return Err(std::io::ErrorKind::TimedOut)
+                }
+                continue;
             }
         }
-        let retry_time = 2000;
+        
+        // コマンド一致チェック
+        if 0 < params.len() {
+            if params.len() > 9 {
+                let rcv_cmd = u8::from_str_radix(&extract_str(&(params[9]), 24, 25), 16).unwrap_or(0);
+                
+                if rcv_cmd == expected_cmd {
+                    rcv_udp = String::from(&(params[9]));
+                    break;
+                } else {
+                    println!("Command mismatch, continuing to wait...");
+                }
+            } else {
+                println!("Insufficient parameters in ERXUDP response (got: {}, need: >9)", params.len());
+            }
+        }
+        
+        // リトライ間隔を調整（通信の安定性を向上）
         std::thread::sleep(Duration::from_millis(retry_time));
         count = count + 1;
+        
         if time_ms < (retry_time * count){
-            return Err(std::io::ErrorKind::InvalidData);
+            println!("ERROR: Timeout waiting for ERXUDP response ({}ms elapsed)", retry_time * count);
+            return Err(std::io::ErrorKind::TimedOut)
         }
     }
     Ok(rcv_udp)
@@ -305,7 +376,7 @@ fn extract_power_w_from_udp(udp_cmd: &str) -> Result<u32, std::io::ErrorKind> {
             if 0 < v && v < 10000 {
                 power_w = v
             } else {
-                return Err(std::io::ErrorKind::InvalidData);
+                return Err(std::io::ErrorKind::InvalidData)
             }
         },
         Err(_) => return Err(std::io::ErrorKind::InvalidData)
@@ -328,8 +399,9 @@ fn extract_power_a_from_udp(udp_cmd: &str) -> Result<f64, std::io::ErrorKind> {
     };
 
     if 0 == power_a || 2000 <=  power_a {
-        return Err(std::io::ErrorKind::InvalidData);
-    }    Ok(power_a as f64 / 20.0)
+        return Err(std::io::ErrorKind::InvalidData)
+    }
+    Ok(power_a as f64 / 20.0)
 }
 
 fn send_str_cmd(port: &mut Box<dyn SerialPort>, cmd: &str, resp: bool) -> Result<Vec<String>, Box<dyn Error>>{
@@ -338,31 +410,89 @@ fn send_str_cmd(port: &mut Box<dyn SerialPort>, cmd: &str, resp: bool) -> Result
         Err(err) => return Err(err),
     }
     if resp == true {
-        return device::rx_command(port);
+        return device::rx_command(port)
     } else {
         let cmds: Vec<String> = Vec::new();
-        return Ok(cmds);
+        return Ok(cmds)
     }
 }
 
 fn send_echonet_udp(port: &mut Box<dyn SerialPort>, ip6addr: &str, cmd: &[u8]) -> Result<(), Box<dyn Error>>{
-    let header: String = "SKSENDTO 1 ".to_string() + ip6addr + " 0E1A 1 0 000E ";
-    let mut tmp_cmd_bytes : Vec<u8> = Vec::new();
-
-    for byte in header.as_bytes(){
-        tmp_cmd_bytes.push(*byte);
+    const MAX_RETRIES: u32 = 3;
+    const RETRY_DELAY_MS: u64 = 1000;
+    const EVENT21_TIMEOUT_MS: u64 = 5000;
+    
+    for attempt in 1..=MAX_RETRIES {
+        // UDPコマンドを送信
+        if let Err(err) = send_udp_command(port, ip6addr, cmd) {
+            println!("ERROR: Failed to send ECHONET UDP on attempt {}: {}", attempt, err);
+            if attempt < MAX_RETRIES {
+                std::thread::sleep(Duration::from_millis(RETRY_DELAY_MS));
+                continue;
+            } else {
+                return Err(err);
+            }
+        }
+        
+        // EVENT 21の応答を待機
+        match wait_for_event21(port, attempt, EVENT21_TIMEOUT_MS) {
+            Ok(Event21Status::Success) => return Ok(()),
+            Ok(Event21Status::Retry) => {
+                if attempt < MAX_RETRIES {
+                    println!("Retrying UDP command in {}ms... (attempt {}/{})", RETRY_DELAY_MS, attempt + 1, MAX_RETRIES);
+                    std::thread::sleep(Duration::from_millis(RETRY_DELAY_MS));
+                    continue;
+                } else {
+                    return Err("Max retries exceeded".into());
+                }
+            },
+            Ok(Event21Status::Error) => return Err("EVENT 21 error".into()),
+            Err(msg) => return Err(msg.into()),
+        }
     }
-    for byte in cmd {
-        tmp_cmd_bytes.push(*byte);
-    }
+    
+    Err("Unexpected error in send_echonet_udp".into())
+}
 
-    let cmd_bytes : &[u8] = &tmp_cmd_bytes;
+
+fn send_udp_command(port: &mut Box<dyn SerialPort>, ip6addr: &str, cmd: &[u8]) -> Result<(), Box<dyn Error>> {
+    let header = format!("SKSENDTO 1 {} 0E1A 1 0 000E ", ip6addr);
+    let mut cmd_bytes = header.as_bytes().to_vec();
+    cmd_bytes.extend_from_slice(cmd);
+    
     println!("SEND(ECHONET): {}{:02X?}", header, cmd);
-    match device::tx_command_bytes(port, cmd_bytes){
-        Ok(v)=> return Ok(v),
-        Err(err) => return Err(err),
+    device::tx_command_bytes(port, &cmd_bytes)
+}
+
+fn wait_for_event21(port: &mut Box<dyn SerialPort>, attempt: u32, timeout_ms: u64) -> Result<Event21Status, String> {
+    let start_time = std::time::Instant::now();
+    
+    loop {
+        if start_time.elapsed().as_millis() > timeout_ms as u128 {
+            return Err(format!("Timeout waiting for EVENT 21 response on attempt {}", attempt));
+        }
+        
+        let resp = match device::rx_command(port) {
+            Ok(v) => v,
+            Err(_) => {
+                std::thread::sleep(Duration::from_millis(50));
+                continue;
+            }
+        };
+        
+        for line in resp {
+            if Some(0) <= line.find("EVENT 21") {
+                match check_event21(&vec![line]) {
+                    Ok(status) => return Ok(status),
+                    Err(_) => return Err("Failed to parse EVENT 21 response".to_string()),
+                }
+            }
+        }
+        
+        std::thread::sleep(Duration::from_millis(50));
     }
 }
+
 
 fn extract_str(param: &str, start: usize, end: usize) -> String {
     let mut s = String::new();

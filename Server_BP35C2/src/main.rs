@@ -2,8 +2,6 @@
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::thread;
 use std::time::Duration;
-use tokio::runtime::Runtime;
-// use std::error::Error;
 
 use serde_json::json;
 
@@ -31,11 +29,11 @@ static TEMPERATURE: AtomicU64 = AtomicU64::new(0);
 async fn main() {
     dotenvy::dotenv().ok();
 
-    let device_path = config::device_path();
     let b_route_id = config::b_route_id();
     let b_route_pass = config::b_route_pass();
 
-    let mut port = bp35c2::ctrl::init_bp35c2(&device_path, &b_route_id, &b_route_pass).unwrap();
+    let mut port =
+        bp35c2::ctrl::init_bp35c2(config::DEVICE_PATH, &b_route_id, &b_route_pass).unwrap();
     let meter_info = bp35c2::ctrl::scan_meter(&mut port);
     bp35c2::ctrl::connect_meter(&mut port, &meter_info);
 
@@ -44,6 +42,7 @@ async fn main() {
         loop {
             let mut freq_sec = config::GET_FREQ_SEC_POWER;
             let mut err_flg = false;
+
             match bp35c2::ctrl::read_power_w(&mut port, &meter_info) {
                 Ok(v) => POWER_W.store(v, Ordering::Relaxed),
                 Err(_) => {
@@ -51,6 +50,9 @@ async fn main() {
                     err_flg = true;
                 }
             }
+
+            thread::sleep(Duration::from_millis(1000));
+
             match bp35c2::ctrl::read_power_a(&mut port, &meter_info) {
                 Ok(v) => POWER_A.store(v.to_bits(), Ordering::Relaxed),
                 Err(_) => {
@@ -58,52 +60,80 @@ async fn main() {
                     err_flg = true;
                 }
             }
+
             println!();
-            println!("Power: {} W / {} A",
+            println!(
+                "Power: {} W / {} A",
                 POWER_W.load(Ordering::Relaxed),
-                f64::from_bits(POWER_A.load(Ordering::Relaxed)));
+                f64::from_bits(POWER_A.load(Ordering::Relaxed))
+            );
+
             match err_flg {
-                true => err_count += 1,
-                false => err_count = 0,
-            }
-            if 5 < err_count {
-                bp35c2::ctrl::connect_meter(&mut port, &meter_info);
-                println!("Maybe once disconnected. Re-connecting...");
+                true => {
+                    err_count += 1;
+                    println!("Error occurred, incrementing error count to: {}", err_count);
+                }
+                false => {
+                    if err_count > 0 {
+                        println!("Successful reading, resetting error count from: {}", err_count);
+                    }
+                    err_count = 0;
+                }
             }
 
-            std::thread::sleep(Duration::from_secs(freq_sec));
+            if 5 < err_count {
+                println!(
+                    "ERROR: Too many consecutive errors ({}), attempting to reconnect...",
+                    err_count
+                );
+                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    bp35c2::ctrl::connect_meter(&mut port, &meter_info);
+                })) {
+                    Ok(_) => println!("Reconnection completed"),
+                    Err(_) => println!("ERROR: Reconnection failed with panic"),
+                }
+            }
+
+            thread::sleep(Duration::from_secs(freq_sec));
         }
     });
 
-    let rt = Runtime::new().unwrap();
-    let switchbot_devid = config::switchbot_meter_devid();
+    let switchbot_meter_devid = config::switchbot_meter_devid();
     let switchbot_token = config::switchbot_token();
-    rt.spawn(async move {
+    let switchbot_secret = config::switchbot_secret();
+    tokio::spawn(async move {
         loop {
             let mut freq_sec = config::GET_FREQ_SEC_SB_METER;
-            match switchbot::meter::get_meter_status(&switchbot_devid, &switchbot_token).await {
+            match switchbot::meter::get_meter_status(
+                &switchbot_meter_devid,
+                &switchbot_token,
+                &switchbot_secret,
+            )
+            .await
+            {
                 Ok(v) => {
                     let meter: Meter = *v;
                     HUMIDITY.store(meter.body.humidity, Ordering::Relaxed);
                     TEMPERATURE.store(meter.body.temperature.to_bits(), Ordering::Relaxed);
                 }
-                Err(_) => freq_sec = 1
+                Err(_) => freq_sec = 1,
             }
             println!();
-            println!("Meter: {} ℃ / {} %",
+            println!(
+                "Meter: {} ℃ / {} %",
                 f64::from_bits(TEMPERATURE.load(Ordering::Relaxed)),
-                HUMIDITY.load(Ordering::Relaxed));
-            std::thread::sleep(Duration::from_secs(freq_sec));
+                HUMIDITY.load(Ordering::Relaxed)
+            );
+            tokio::time::sleep(Duration::from_secs(freq_sec)).await;
         }
     });
 
     let api_url = format!("{}:{}", config::server_ip(), config::server_port());
     let app = Router::new().route(config::API_PATH, get(handler_get_power));
     println!("Start REST API: http://{}{}", api_url, config::API_PATH);
-    axum::Server::bind(&api_url.parse().unwrap())
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+
+    let listener = tokio::net::TcpListener::bind(&api_url).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 }
 
 async fn handler_get_power() -> impl IntoResponse {

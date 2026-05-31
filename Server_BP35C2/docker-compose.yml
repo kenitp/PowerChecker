@@ -1,0 +1,13 @@
+services:
+  power-checker:
+    build: .
+    container_name: power-checker
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    devices:
+      - "/dev/ttyUSB_power:/dev/ttyUSB_power"
+    env_file:
+      - .env
+    environment:
+      - SERVER_IP=0.0.0.0
