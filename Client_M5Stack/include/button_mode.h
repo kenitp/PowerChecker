@@ -7,6 +7,8 @@ enum class BUTTON_MODE : int {
     POWER_IMG,
     CLOCK,
     PHOTO,
+    REPAIR,
+    CHECK,
     NUM
 };
 

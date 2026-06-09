@@ -32,6 +32,8 @@ void setup() {
     xTaskCreatePinnedToCore(taskPower, "PowerCheck", 8192, NULL, 3, NULL, 1);
     xTaskCreatePinnedToCore(taskClock, "Clock", 4096, NULL, 4, NULL, 1);
     xTaskCreatePinnedToCore(taskPhoto, "Photo", 8192, NULL, 3, NULL, 1);
+    xTaskCreatePinnedToCore(taskScreenRepair, "ScreenRepair", 4096, NULL, 3, NULL, 1);
+    xTaskCreatePinnedToCore(taskScreenCheck, "ScreenCheck", 4096, NULL, 3, NULL, 1);
     xTaskCreatePinnedToCore(taskFtpServer, "FtpServer", 8192, NULL, 2, NULL, 1);
     delay(3000);
 }
