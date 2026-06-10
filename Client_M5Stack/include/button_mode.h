@@ -1,5 +1,5 @@
 #pragma once
-#include <M5Stack.h>
+#include "m5_device.h"
 
 enum class BUTTON_MODE : int {
     INIT,
@@ -17,10 +17,7 @@ public:
     ButtonMode(){};
     ~ButtonMode(){};
 
-    // Button 割込み Handler
-    static void IRAM_ATTR onLeftButton(void);
-    static void IRAM_ATTR onMiddleButton(void);
-    static void IRAM_ATTR onRightButton(void);
+    static void update(void);
 
     static BUTTON_MODE getMode(void);
     static bool needRefresh(void);
@@ -29,8 +26,15 @@ public:
     static void checkSdExist(void);
 
 private:
+    static void cycleMode(void);
+    static void requestRefresh(void);
+    static void updateTouch(void);
+
     static BUTTON_MODE buttonMode;
     static bool buttonModeChanged;
     static bool isExistSD;
     static bool isRefresh;
 };
+
+// ボタン/タッチ入力を監視するタスク
+void taskButton(void *args);

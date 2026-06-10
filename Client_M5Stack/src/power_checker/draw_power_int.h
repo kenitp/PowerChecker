@@ -1,6 +1,6 @@
 #pragma once
 
-#include <M5Stack.h>
+#include "m5_device.h"
 #include "display.h"
 #include "config.h"
 #include "power_photo_int.h"

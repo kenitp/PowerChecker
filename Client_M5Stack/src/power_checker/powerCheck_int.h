@@ -1,5 +1,5 @@
 #pragma once
-#include <M5Stack.h>
+#include "m5_device.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <M5Stack.h>
+#include "m5_device.h"
 #include <driver/adc.h>
 #include "config.h"
 #include "display.h"

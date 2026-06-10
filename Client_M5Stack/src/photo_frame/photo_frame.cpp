@@ -12,7 +12,7 @@ void taskPhoto(void *args) {
             if (force || (now - last_draw_ms >= PixelShift::SHIFT_INTERVAL_MS)) {
                 last_draw_ms = now;
                 resetDisplay();
-                M5.Lcd.drawJpgFile(SD, "/img/img002.jpg",
+                M5.Display.drawJpgFile(SD, "/img/img002.jpg",
                     PixelShift::getX(), PixelShift::getY());
             }
         }

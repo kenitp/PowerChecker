@@ -6,9 +6,8 @@ static void initFtpServer(void);
 
 static void initFtpServer(void)
 {
-    if (SD.begin()) {
-        ftp.begin(FTP_USER, FTP_PASS);
-    }
+    // SD は setup() の deviceInitSD() で初期化済み
+    ftp.begin(FTP_USER, FTP_PASS);
 }
 
 void taskFtpServer(void *args)
@@ -17,5 +16,7 @@ void taskFtpServer(void *args)
 
     while (true) {
         ftp.handleFTP();
+        // 他タスク・loop にも CPU を譲る（busy loop 防止）
+        delay(1);
     }
 }

@@ -1,6 +1,6 @@
 #pragma once
 #include <vector>
-#include <M5Stack.h>
+#include "m5_device.h"
 #include "config.h"
 
 class PowerPhoto {

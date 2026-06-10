@@ -1,4 +1,5 @@
 #include "screen_repair_int.h"
+#include "m5_device.h"
 
 // 焼き付き（残像）修復：液晶分子の固定化を解消するため、
 // 全画面を様々なパターンで高速に駆動して画素を揺さぶる。
@@ -25,9 +26,11 @@ static const uint32_t FLASH_INTERVAL_MS = 120;
 static const uint16_t FLASH_REPEAT = 30;
 
 // 修復中の輝度（残像解消のため最大にする）
-static const uint8_t REPAIR_BRIGHTNESS = 255;
-// 通常時の輝度（setup と揃える）
-static const uint8_t NORMAL_BRIGHTNESS = 1;
+static const uint8_t REPAIR_BRIGHTNESS_MAX = 255;
+
+static uint8_t normalBrightness(void) {
+    return deviceNormalBrightness();
+}
 
 // モード継続中のみ true。途中でモードが変わったら false を返す
 static bool stillRepairing(void) {
@@ -53,7 +56,7 @@ static bool runColorPhase(void) {
             if (!stillRepairing()) {
                 return false;
             }
-            M5.Lcd.fillScreen(REPAIR_COLORS[i]);
+            M5.Display.fillScreen(REPAIR_COLORS[i]);
             if (!repairDelay(COLOR_INTERVAL_MS)) {
                 return false;
             }
@@ -68,11 +71,11 @@ static bool runFlashPhase(void) {
         if (!stillRepairing()) {
             return false;
         }
-        M5.Lcd.fillScreen(TFT_WHITE);
+        M5.Display.fillScreen(TFT_WHITE);
         if (!repairDelay(FLASH_INTERVAL_MS)) {
             return false;
         }
-        M5.Lcd.fillScreen(TFT_BLACK);
+        M5.Display.fillScreen(TFT_BLACK);
         if (!repairDelay(FLASH_INTERVAL_MS)) {
             return false;
         }
@@ -90,7 +93,7 @@ void taskScreenRepair(void *args) {
                 // 修復モードに入った：輝度を最大に上げる
                 active = true;
                 ButtonMode::isChanged();
-                M5.Lcd.setBrightness(REPAIR_BRIGHTNESS);
+                M5.Display.setBrightness(REPAIR_BRIGHTNESS_MAX);
             }
 
             // 強化修復シーケンスを実行（途中でモードが変わったら中断）
@@ -101,8 +104,8 @@ void taskScreenRepair(void *args) {
             if (active) {
                 // 修復モードを抜けた：輝度と画面を元に戻す
                 active = false;
-                M5.Lcd.setBrightness(NORMAL_BRIGHTNESS);
-                M5.Lcd.fillScreen(TFT_BLACK);
+                M5.Display.setBrightness(normalBrightness());
+                M5.Display.fillScreen(TFT_BLACK);
             }
             delay(500);
         }

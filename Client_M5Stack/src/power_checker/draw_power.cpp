@@ -53,16 +53,16 @@ void DrawPower::draw(String *power_w, String *power_a, bool force){
 
 void DrawPower::drawErr(const char *str){
     resetDisplay();
-    M5.Lcd.setTextSize(1);
-    M5.Lcd.println(str);
+    M5.Display.setTextSize(1);
+    M5.Display.println(str);
     return;
 }
 
 void DrawPower::drawTitle(void) {
-    M5.Lcd.setTextFont(titleFont);
-    M5.Lcd.setTextSize(titleSize);
-    M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-    M5.Lcd.println("Electricity Usage");
+    M5.Display.setTextFont(titleFont);
+    M5.Display.setTextSize(titleSize);
+    M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
+    M5.Display.println("Electricity Usage");
     return;
 }
 
@@ -82,22 +82,22 @@ void DrawPower::drawValues(String *power_w, String *power_a) {
         wColor = TFT_RED;
     }
 
-    M5.Lcd.setTextFont(valueFont);
-    M5.Lcd.setTextSize(valueSize);
+    M5.Display.setTextFont(valueFont);
+    M5.Display.setTextSize(valueSize);
 
-    M5.Lcd.setTextColor(wColor, TFT_BLACK);
-    M5.Lcd.setCursor(M5.Lcd.getCursorX()+w_offsetX, M5.Lcd.getCursorY()+w_offsetY);
-    M5.Lcd.printf("%4s ", power_w);
-    int16_t curW_unit_X = M5.Lcd.getCursorX();
-    M5.Lcd.println("W");
+    M5.Display.setTextColor(wColor, TFT_BLACK);
+    M5.Display.setCursor(M5.Display.getCursorX()+w_offsetX, M5.Display.getCursorY()+w_offsetY);
+    M5.Display.printf("%4s ", power_w);
+    int16_t curW_unit_X = M5.Display.getCursorX();
+    M5.Display.println("W");
 
-    M5.Lcd.setTextColor(0xBDF7, TFT_BLACK);  // ライトグレー
-    M5.Lcd.setCursor(M5.Lcd.getCursorX()+a_offsetX, M5.Lcd.getCursorY()+a_offsetY);
-    M5.Lcd.printf("%4s ", power_a);
-    int16_t curA_unit_X = M5.Lcd.getCursorX();
+    M5.Display.setTextColor(0xBDF7, TFT_BLACK);  // ライトグレー
+    M5.Display.setCursor(M5.Display.getCursorX()+a_offsetX, M5.Display.getCursorY()+a_offsetY);
+    M5.Display.printf("%4s ", power_a);
+    int16_t curA_unit_X = M5.Display.getCursorX();
     int16_t cur = max(curW_unit_X, curA_unit_X);
-    M5.Lcd.setCursor(cur+a_unit_offsetX, M5.Lcd.getCursorY());
-    M5.Lcd.println("A");
+    M5.Display.setCursor(cur+a_unit_offsetX, M5.Display.getCursorY());
+    M5.Display.println("A");
     return;
 }
 
@@ -119,10 +119,10 @@ void DrawPower::drawImage(String *power_w) {
     }
     if (img_path->indexOf(".jpg") != -1) {
         Serial.printf("[Debug] drawJpg = %s\r\n", img_path->c_str());
-        M5.Lcd.drawJpgFile(SD, img_path->c_str(), 185 + PixelShift::getX(), 55 + PixelShift::getY());
+        M5.Display.drawJpgFile(SD, img_path->c_str(), 185 + PixelShift::getX(), 55 + PixelShift::getY());
     } else {
         Serial.printf("[Debug] drawPng = %s\r\n", img_path->c_str());
-        M5.Lcd.drawPngFile(SD, img_path->c_str(), 185 + PixelShift::getX(), 55 + PixelShift::getY());
+        M5.Display.drawPngFile(SD, img_path->c_str(), 185 + PixelShift::getX(), 55 + PixelShift::getY());
     }
     return;
 }

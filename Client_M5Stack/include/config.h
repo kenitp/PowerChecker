@@ -1,5 +1,4 @@
 #pragma once
-#include <M5Stack.h>
 
 enum class POWER_LEVEL : int {
     LvLOW,

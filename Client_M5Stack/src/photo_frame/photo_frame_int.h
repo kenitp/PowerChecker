@@ -1,5 +1,5 @@
 #pragma once
-#include <M5Stack.h>
+#include "m5_device.h"
 #include "button_mode.h"
 #include "display.h"
 

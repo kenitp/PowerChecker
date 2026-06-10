@@ -1,6 +1,13 @@
 # PowerChecker Client (M5Stack)
 
-M5Stack Fire 向けの PowerChecker クライアントです。サーバーから電力情報を取得して表示するほか、時計・フォトフレーム・FTP サーバー機能を備えています。
+M5Stack Fire / Core2 向けの PowerChecker クライアントです。サーバーから電力情報を取得して表示するほか、時計・フォトフレーム・FTP サーバー機能を備えています。
+
+## 対応デバイス
+
+| デバイス | PlatformIO 環境 | ボタン操作 |
+|----------|-------------------|------------|
+| [M5Stack Fire](https://docs.m5stack.com/ja/core/fire) | `m5stack-fire` | 側面の物理ボタン（左/中/右） |
+| [M5Stack Core2](https://docs.m5stack.com/ja/core/core2) | `m5stack-core2` | 画面下部のタッチボタン（左/中/右） |
 
 ## 機能
 
@@ -13,13 +20,19 @@ M5Stack Fire 向けの PowerChecker クライアントです。サーバーか�
 | REPAIR | 全画面を原色で順番に塗りつぶし、画面の焼き付き（残像）を修復 |
 | CHECK | 暗めの単色をバックライト最大で表示し、焼き付き（残像）を確認（右ボタンで色切替） |
 
-ボタン操作でモードを切り替えます（左/中/右ボタン）。
+| ボタン | 機能 |
+|--------|------|
+| 左 | 未使用 |
+| 中央 | モード切替 |
+| 右 | 画面更新 |
+
+> **Core2 について:** Fire と異なり物理ボタンはありません。画面最下部（約 32px）をタッチして操作してください。
 
 FTP サーバー機能により、Wi-Fi 経由で SD カードへ画像を転送できます。
 
 ## 必要なもの
 
-- [M5Stack Fire](https://docs.m5stack.com/ja/core/fire)
+- M5Stack Fire または M5Stack Core2
 - [PlatformIO](https://platformio.org/)（CLI または VS Code 拡張）
 - Wi-Fi 環境
 - PowerChecker サーバー（`/api/power` エンドポイント）
@@ -52,28 +65,50 @@ pip install platformio
 
 ### ビルドのみ
 
+Fire（デフォルト）:
+
 ```bash
-pio run
+pio run -e m5stack-fire
+```
+
+Core2:
+
+```bash
+pio run -e m5stack-core2
+```
+
+両方まとめてビルド:
+
+```bash
+pio run -e m5stack-fire -e m5stack-core2
 ```
 
 ### M5Stack に書き込む
 
-USB で M5Stack を接続してから実行します。
+USB で M5Stack を接続してから、使用するデバイスに合わせて環境を指定します。
+
+Fire:
 
 ```bash
-pio run --target upload
+pio run -e m5stack-fire --target upload
+```
+
+Core2:
+
+```bash
+pio run -e m5stack-core2 --target upload
 ```
 
 ポートを明示的に指定する場合:
 
 ```bash
-pio run --target upload --upload-port /dev/ttyUSB0
+pio run -e m5stack-fire --target upload --upload-port COM3
 ```
 
 ### ビルド＋書き込みをまとめて実行
 
 ```bash
-pio run --target upload && pio device monitor
+pio run -e m5stack-fire --target upload && pio device monitor
 ```
 
 ### シリアルモニター（デバッグ出力確認）
@@ -108,7 +143,7 @@ FTP サーバー機能を使って Wi-Fi 経由で画像を転送できます。
 
 | ライブラリ | バージョン |
 |------------|------------|
-| M5Stack | ^0.4.3 |
+| M5Unified | ^0.2.2 |
 | ArduinoJson | ^6.19.4 |
 | ESP32FTPServer | ^0.0.2 |
 
@@ -121,13 +156,15 @@ Client_M5Stack/
 ├── src/
 │   ├── main.cpp              # エントリーポイント・タスク起動
 │   ├── config.cpp            # Wi-Fi / URL / FTP 設定
-│   ├── button_mode/          # ボタン割り込み・モード管理
+│   ├── button_mode/          # ボタン入力・モード管理
 │   ├── clock/                # 時計表示タスク
 │   ├── ftp_server/           # FTP サーバータスク
 │   ├── photo_frame/          # フォトフレームタスク
 │   ├── power_checker/        # 電力取得・表示タスク
-│   └── utils/                # Wi-Fi 接続・ディスプレイ共通処理
+│   ├── screen_check/         # 焼き付き確認タスク
+│   ├── screen_repair/        # 焼き付き修復タスク
+│   └── utils/                # Wi-Fi 接続・ディスプレイ・デバイス共通処理
 ├── include/                  # 公開ヘッダー
 ├── lib/ESP32FTPServer/       # FTP サーバーライブラリ（サブモジュール）
-└── platformio.ini            # PlatformIO 設定
+└── platformio.ini            # PlatformIO 設定（Fire / Core2 環境）
 ```

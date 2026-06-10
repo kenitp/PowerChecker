@@ -36,7 +36,7 @@ static bool get_time_from_ntp(void) {
     //NTPによる時刻取得
     configTime(GMT_OFFSET_SEC, DAY_LIGHT_OFFSET_SEC, NTP_SERVER);
     if (!getLocalTime(&timeinfo)) {
-        M5.Lcd.println("Failed to get time");
+        M5.Display.println("Failed to get time");
         return false;
     }
     return true;
@@ -57,36 +57,36 @@ static void display_clock(struct tm &timeinfo){
     if (dx != last_dx || dy != last_dy) {
         last_dx = dx;
         last_dy = dy;
-        M5.Lcd.clear(BLACK);
+        M5.Display.fillScreen(TFT_BLACK);
     }
 
     // 日付（白）
-    M5.Lcd.setTextFont(4);
-    M5.Lcd.setTextSize(1);
-    M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-    M5.Lcd.setCursor(0 + dx, 25 + dy);
-    M5.Lcd.printf("%02d/%02d/%02d(%s)\r\n",
+    M5.Display.setTextFont(4);
+    M5.Display.setTextSize(1);
+    M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
+    M5.Display.setCursor(0 + dx, 25 + dy);
+    M5.Display.printf("%02d/%02d/%02d(%s)\r\n",
     timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, week[timeinfo.tm_wday]);
-    posX = M5.Lcd.getCursorX();
-    posY = M5.Lcd.getCursorY();
+    posX = M5.Display.getCursorX();
+    posY = M5.Display.getCursorY();
 
     // セパレーターライン
-    M5.Lcd.drawLine(0 + dx, posY + 2, 319 + dx, posY + 2, 0x4208);
+    M5.Display.drawLine(0 + dx, posY + 2, 319 + dx, posY + 2, 0x4208);
 
     // 時刻（オレンジ/アンバー）
-    M5.Lcd.setTextFont(7);
-    M5.Lcd.setTextSize(2);
-    M5.Lcd.setTextColor(TFT_ORANGE, TFT_BLACK);
-    M5.Lcd.setCursor(posX+15, posY+10);
-    M5.Lcd.printf("%02d:%02d\r\n",timeinfo.tm_hour, timeinfo.tm_min);
-    posX = M5.Lcd.getCursorX();
-    posY = M5.Lcd.getCursorY();
+    M5.Display.setTextFont(7);
+    M5.Display.setTextSize(2);
+    M5.Display.setTextColor(TFT_ORANGE, TFT_BLACK);
+    M5.Display.setCursor(posX+15, posY+10);
+    M5.Display.printf("%02d:%02d\r\n",timeinfo.tm_hour, timeinfo.tm_min);
+    posX = M5.Display.getCursorX();
+    posY = M5.Display.getCursorY();
 
     // 秒（グレー）
-    M5.Lcd.setTextFont(7);
-    M5.Lcd.setTextSize(1);
-    M5.Lcd.setTextColor(0x7BEF, TFT_BLACK);
-    M5.Lcd.setCursor(230 + dx, posY+15);
-    M5.Lcd.printf("%02d",timeinfo.tm_sec);
+    M5.Display.setTextFont(7);
+    M5.Display.setTextSize(1);
+    M5.Display.setTextColor(0x7BEF, TFT_BLACK);
+    M5.Display.setCursor(230 + dx, posY+15);
+    M5.Display.printf("%02d",timeinfo.tm_sec);
     return;
 }

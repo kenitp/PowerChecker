@@ -1,4 +1,5 @@
 #include "screen_check_int.h"
+#include "m5_device.h"
 
 // 焼き付き確認：暗〜中間の均一な単色をバックライト最大で表示する。
 // 残像は画素の透過率のわずかな差として現れるため、暗めのグレーや紺だと
@@ -28,13 +29,15 @@ static const CheckColor CHECK_COLORS[] = {
 };
 static const uint8_t CHECK_COLOR_NUM = sizeof(CHECK_COLORS) / sizeof(CHECK_COLORS[0]);
 
-// 確認中の輝度（残像を見やすくするため最大にする）
-static const uint8_t CHECK_BRIGHTNESS = 255;
 // 通常時の輝度（setup と揃える）
-static const uint8_t NORMAL_BRIGHTNESS = 1;
+static const uint8_t CHECK_BRIGHTNESS_MAX = 255;
+
+static uint8_t normalBrightness(void) {
+    return deviceNormalBrightness();
+}
 
 static void drawCheckColor(uint8_t index) {
-    M5.Lcd.fillScreen(CHECK_COLORS[index].color);
+    M5.Display.fillScreen(CHECK_COLORS[index].color);
     Serial.printf("[Debug] ScreenCheck color: %s\r\n", CHECK_COLORS[index].name);
 }
 
@@ -51,7 +54,7 @@ void taskScreenCheck(void *args) {
                 color_index = 0;
                 ButtonMode::isChanged();
                 ButtonMode::needRefresh();
-                M5.Lcd.setBrightness(CHECK_BRIGHTNESS);
+                M5.Display.setBrightness(CHECK_BRIGHTNESS_MAX);
                 drawCheckColor(color_index);
             }
 
@@ -65,8 +68,8 @@ void taskScreenCheck(void *args) {
             if (active) {
                 // 確認モードを抜けた：輝度と画面を元に戻す
                 active = false;
-                M5.Lcd.setBrightness(NORMAL_BRIGHTNESS);
-                M5.Lcd.fillScreen(TFT_BLACK);
+                M5.Display.setBrightness(normalBrightness());
+                M5.Display.fillScreen(TFT_BLACK);
             }
             delay(500);
         }
