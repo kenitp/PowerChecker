@@ -1,4 +1,5 @@
 use std::env;
+use std::path::PathBuf;
 
 pub const DEVICE_PATH: &str = "/dev/ttyUSB_power";
 pub fn server_ip() -> String {
@@ -11,9 +12,16 @@ pub fn server_port() -> i32 {
         .unwrap_or(3000)
 }
 pub const API_PATH: &str = "/api/power";
+pub const API_HISTORY_PATH: &str = "/api/power/history";
 
 pub const GET_FREQ_SEC_POWER: u64 = 60;
 pub const GET_FREQ_SEC_SB_METER: u64 = 30;
+
+pub fn db_path() -> PathBuf {
+    env::var("DB_PATH")
+        .unwrap_or_else(|_| "data/power.db".to_string())
+        .into()
+}
 
 // 機密情報・デバイス識別子は環境変数から取得
 pub fn b_route_id() -> String {

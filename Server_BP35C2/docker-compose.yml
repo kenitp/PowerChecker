@@ -11,3 +11,6 @@ services:
       - .env
     environment:
       - SERVER_IP=0.0.0.0
+      - DB_PATH=/data/power.db
+    volumes:
+      - ./data:/data

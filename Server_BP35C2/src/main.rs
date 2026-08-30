@@ -1,22 +1,16 @@
-
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use serde_json::json;
-
-use axum::{
-    http::StatusCode,
-    response::IntoResponse,
-    routing::get,
-    Json,
-    Router,
-};
+use axum::{routing::get, Router};
 
 use crate::switchbot::meter::Meter;
 
-mod config;
+mod api;
 mod bp35c2;
+mod config;
+mod store;
 mod switchbot;
 
 static POWER_W: AtomicU32 = AtomicU32::new(0);
@@ -28,6 +22,11 @@ static TEMPERATURE: AtomicU64 = AtomicU64::new(0);
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
+
+    let store = Arc::new(
+        store::Store::open(config::db_path()).expect("failed to open power history database"),
+    );
+    let store_writer = Arc::clone(&store);
 
     let b_route_id = config::b_route_id();
     let b_route_pass = config::b_route_pass();
@@ -42,9 +41,14 @@ async fn main() {
         loop {
             let mut freq_sec = config::GET_FREQ_SEC_POWER;
             let mut err_flg = false;
+            let mut power_w_ok = None;
+            let mut power_a_ok = None;
 
             match bp35c2::ctrl::read_power_w(&mut port, &meter_info) {
-                Ok(v) => POWER_W.store(v, Ordering::Relaxed),
+                Ok(v) => {
+                    POWER_W.store(v, Ordering::Relaxed);
+                    power_w_ok = Some(v);
+                }
                 Err(_) => {
                     freq_sec = 1;
                     err_flg = true;
@@ -54,7 +58,10 @@ async fn main() {
             thread::sleep(Duration::from_millis(1000));
 
             match bp35c2::ctrl::read_power_a(&mut port, &meter_info) {
-                Ok(v) => POWER_A.store(v.to_bits(), Ordering::Relaxed),
+                Ok(v) => {
+                    POWER_A.store(v.to_bits(), Ordering::Relaxed);
+                    power_a_ok = Some(v);
+                }
                 Err(_) => {
                     freq_sec = 1;
                     err_flg = true;
@@ -68,6 +75,12 @@ async fn main() {
                 f64::from_bits(POWER_A.load(Ordering::Relaxed))
             );
 
+            if let Some(power_w) = power_w_ok {
+                if let Err(e) = store_writer.insert(power_w, power_a_ok) {
+                    println!("ERROR: failed to store sample: {e}");
+                }
+            }
+
             match err_flg {
                 true => {
                     err_count += 1;
@@ -75,7 +88,10 @@ async fn main() {
                 }
                 false => {
                     if err_count > 0 {
-                        println!("Successful reading, resetting error count from: {}", err_count);
+                        println!(
+                            "Successful reading, resetting error count from: {}",
+                            err_count
+                        );
                     }
                     err_count = 0;
                 }
@@ -129,21 +145,17 @@ async fn main() {
     });
 
     let api_url = format!("{}:{}", config::server_ip(), config::server_port());
-    let app = Router::new().route(config::API_PATH, get(handler_get_power));
+    let app = Router::new()
+        .route(config::API_PATH, get(api::handler_get_power))
+        .route(config::API_HISTORY_PATH, get(api::handler_get_history))
+        .with_state(store);
     println!("Start REST API: http://{}{}", api_url, config::API_PATH);
+    println!(
+        "Start REST API: http://{}{}",
+        api_url,
+        config::API_HISTORY_PATH
+    );
 
     let listener = tokio::net::TcpListener::bind(&api_url).await.unwrap();
     axum::serve(listener, app).await.unwrap();
-}
-
-async fn handler_get_power() -> impl IntoResponse {
-    (
-        StatusCode::OK,
-        Json(json!({
-            "power_w": POWER_W.load(Ordering::Relaxed).to_string(),
-            "power_a": format!("{:.*}", 1, f64::from_bits(POWER_A.load(Ordering::Relaxed))),
-            "temperature": format!("{:.*}", 1, f64::from_bits(TEMPERATURE.load(Ordering::Relaxed))),
-            "humidity": HUMIDITY.load(Ordering::Relaxed).to_string()
-        })),
-    )
 }
