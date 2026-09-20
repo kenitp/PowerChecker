@@ -1,10 +1,9 @@
 # ビルドステージ
 FROM rust:slim-bookworm AS builder
 
-# serialport クレートや openssl のコンパイルに必要なパッケージをインストール
+# openssl のコンパイルに必要なパッケージをインストール
 RUN apt-get update && apt-get install -y \
     pkg-config \
-    libudev-dev \
     libssl-dev \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
@@ -20,7 +19,6 @@ FROM debian:bookworm-slim
 
 # 実行時に必要な共有ライブラリと証明書をインストール
 RUN apt-get update && apt-get install -y \
-    libudev1 \
     libssl3 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*

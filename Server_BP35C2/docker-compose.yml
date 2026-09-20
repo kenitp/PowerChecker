@@ -5,8 +5,9 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    devices:
-      - "/dev/ttyUSB_power:/dev/ttyUSB_power"
+    # Home Assistant は host ネットワークで動作しているためゲートウェイ経由で参照する
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     environment:

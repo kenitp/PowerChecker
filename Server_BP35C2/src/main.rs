@@ -1,6 +1,5 @@
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 
 use axum::{routing::get, Router};
@@ -8,8 +7,8 @@ use axum::{routing::get, Router};
 use crate::switchbot::meter::Meter;
 
 mod api;
-mod bp35c2;
 mod config;
+mod homeassistant;
 mod store;
 mod switchbot;
 
@@ -28,89 +27,27 @@ async fn main() {
     );
     let store_writer = Arc::clone(&store);
 
-    let b_route_id = config::b_route_id();
-    let b_route_pass = config::b_route_pass();
-
-    let mut port =
-        bp35c2::ctrl::init_bp35c2(config::DEVICE_PATH, &b_route_id, &b_route_pass).unwrap();
-    let meter_info = bp35c2::ctrl::scan_meter(&mut port);
-    bp35c2::ctrl::connect_meter(&mut port, &meter_info);
-
-    thread::spawn(move || {
-        let mut err_count: u32 = 0;
+    let ha = homeassistant::Client::new(config::ha_base_url(), config::ha_token());
+    tokio::spawn(async move {
         loop {
-            let mut freq_sec = config::GET_FREQ_SEC_POWER;
-            let mut err_flg = false;
-            let mut power_w_ok = None;
-            let mut power_a_ok = None;
+            let freq_sec = match read_power(&ha).await {
+                Ok((power_w, power_a)) => {
+                    POWER_W.store(power_w, Ordering::Relaxed);
+                    POWER_A.store(power_a.to_bits(), Ordering::Relaxed);
+                    println!();
+                    println!("Power: {} W / {} A", power_w, power_a);
 
-            match bp35c2::ctrl::read_power_w(&mut port, &meter_info) {
-                Ok(v) => {
-                    POWER_W.store(v, Ordering::Relaxed);
-                    power_w_ok = Some(v);
-                }
-                Err(_) => {
-                    freq_sec = 1;
-                    err_flg = true;
-                }
-            }
-
-            thread::sleep(Duration::from_millis(1000));
-
-            match bp35c2::ctrl::read_power_a(&mut port, &meter_info) {
-                Ok(v) => {
-                    POWER_A.store(v.to_bits(), Ordering::Relaxed);
-                    power_a_ok = Some(v);
-                }
-                Err(_) => {
-                    freq_sec = 1;
-                    err_flg = true;
-                }
-            }
-
-            println!();
-            println!(
-                "Power: {} W / {} A",
-                POWER_W.load(Ordering::Relaxed),
-                f64::from_bits(POWER_A.load(Ordering::Relaxed))
-            );
-
-            if let Some(power_w) = power_w_ok {
-                if let Err(e) = store_writer.insert(power_w, power_a_ok) {
-                    println!("ERROR: failed to store sample: {e}");
-                }
-            }
-
-            match err_flg {
-                true => {
-                    err_count += 1;
-                    println!("Error occurred, incrementing error count to: {}", err_count);
-                }
-                false => {
-                    if err_count > 0 {
-                        println!(
-                            "Successful reading, resetting error count from: {}",
-                            err_count
-                        );
+                    if let Err(e) = store_writer.insert(power_w, Some(power_a)) {
+                        eprintln!("ERROR: failed to store sample: {e}");
                     }
-                    err_count = 0;
+                    config::GET_FREQ_SEC_POWER
                 }
-            }
-
-            if 5 < err_count {
-                println!(
-                    "ERROR: Too many consecutive errors ({}), attempting to reconnect...",
-                    err_count
-                );
-                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    bp35c2::ctrl::connect_meter(&mut port, &meter_info);
-                })) {
-                    Ok(_) => println!("Reconnection completed"),
-                    Err(_) => println!("ERROR: Reconnection failed with panic"),
+                Err(e) => {
+                    eprintln!("ERROR: failed to read smart meter: {e}");
+                    config::RETRY_FREQ_SEC
                 }
-            }
-
-            thread::sleep(Duration::from_secs(freq_sec));
+            };
+            tokio::time::sleep(Duration::from_secs(freq_sec)).await;
         }
     });
 
@@ -132,7 +69,7 @@ async fn main() {
                     HUMIDITY.store(meter.body.humidity, Ordering::Relaxed);
                     TEMPERATURE.store(meter.body.temperature.to_bits(), Ordering::Relaxed);
                 }
-                Err(_) => freq_sec = 1,
+                Err(_) => freq_sec = config::RETRY_FREQ_SEC,
             }
             println!();
             println!(
@@ -158,4 +95,20 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind(&api_url).await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+/// スマートメーターを再計測させ、瞬時電力(W)と R/T 相の平均電流(A)を取得する
+async fn read_power(ha: &homeassistant::Client) -> Result<(u32, f64), homeassistant::Error> {
+    ha.refresh(&[
+        config::HA_ENTITY_POWER_W,
+        config::HA_ENTITY_CURRENT_R,
+        config::HA_ENTITY_CURRENT_T,
+    ])
+    .await?;
+
+    let power_w = ha.state(config::HA_ENTITY_POWER_W).await?;
+    let current_r = ha.state(config::HA_ENTITY_CURRENT_R).await?;
+    let current_t = ha.state(config::HA_ENTITY_CURRENT_T).await?;
+
+    Ok((power_w.round() as u32, (current_r + current_t) / 2.0))
 }

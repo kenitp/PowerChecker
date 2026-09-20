@@ -1,49 +1,44 @@
-# PowerChecker - Server (BP35C2 / BP35C0)
+# PowerChecker - Server
 
-スマートメーター（Bルート）と SwitchBot 温湿度計からデータを取得し、REST API で配信するサーバー。
+Home Assistant のスマートメーターセンサーと SwitchBot 温湿度計からデータを取得し、REST API で配信するサーバー。
 
 ## 概要
 
 ```
-[スマートメーター] --Wi-SUN--> [BP35C2/BP35C0] --USB--> [このサーバー] --HTTP--> [クライアント]
-[SwitchBot 温湿度計] ---BLE---> [SwitchBot Cloud API] -----HTTP-----> [このサーバー]
+[スマートメーター] --Wi-SUN--> [BP35C2] --USB--> [Home Assistant] --HTTP--> [このサーバー] --HTTP--> [クライアント]
+[SwitchBot 温湿度計] ---BLE---> [SwitchBot Cloud API] --------------HTTP--------------> [このサーバー]
 ```
 
 | 取得データ | 取得元 | 取得間隔 |
 |---|---|---|
-| 瞬時電力（W） | スマートメーター（ECHONET Lite） | 60秒 |
-| 瞬時電流（A） | スマートメーター（ECHONET Lite） | 60秒 |
+| 瞬時電力（W） | Home Assistant | 60秒 |
+| 瞬時電流（A） | Home Assistant | 60秒 |
 | 温度（℃） | SwitchBot 温湿度計 | 30秒 |
 | 湿度（%） | SwitchBot 温湿度計 | 30秒 |
 
-## ハードウェア要件
+Wi-SUN モジュールとの通信は Home Assistant の [Smart Meter B Route](https://www.home-assistant.io/integrations/route_b_smart_meter/) 統合が担当します。本サーバーは統合が公開する以下のエンティティを参照します。
 
-- **Wi-SUN モジュール**: ROHM BP35C2 または BP35C0
-  - USB 接続（FTDI FT230X チップ搭載）
-- **スマートメーター**: Bルートサービス加入済みのもの
-  - 電力会社への申し込みで Bルート ID / パスワードを取得
-- **SwitchBot 温湿度計**: SwitchBot Hub 経由でクラウド連携済みのもの
+| エンティティ | 内容 |
+|---|---|
+| `sensor.smart_meter_power` | 瞬時電力（W） |
+| `sensor.smart_meter_current_r` | R相の瞬時電流（A） |
+| `sensor.smart_meter_current_t` | T相の瞬時電流（A） |
+
+統合の既定ポーリング間隔は5分のため、値の取得前に `homeassistant.update_entity` を呼んで再計測させています。これにより Home Assistant 側の履歴も60秒間隔で更新されます。
+
+`power_a` は R相とT相の平均値です。
+
+## 前提
+
+- Home Assistant に Smart Meter B Route 統合が設定済みであること
+  - 設定 → デバイスとサービス → 統合を追加 → Smart Meter B Route
+  - Wi-SUN モジュール（`/dev/ttyUSB0`）、BルートID、パスワードを入力する
+  - 生成されたエンティティ ID を上表の名称にリネームする
+- Home Assistant の長期アクセストークン
+  - プロフィール → セキュリティ → 長期アクセストークンを作成
+- SwitchBot 温湿度計が SwitchBot Hub 経由でクラウド連携済みであること
 
 ## セットアップ
-
-### 1. udev ルールの設定（USB デバイス名の固定）
-
-```bash
-sudo cp 99-com.rules /etc/udev/rules.d/
-sudo udevadm control --reload-rules
-sudo udevadm trigger
-```
-
-BP35C2 を接続すると `/dev/ttyUSB_power` として認識されます。
-
-### 2. ユーザーをシリアルポートグループに追加
-
-```bash
-sudo usermod -aG dialout $USER
-# ログアウト・再ログインして反映
-```
-
-### 3. 環境変数の設定
 
 `.env.example` をコピーして `.env` を作成し、各自の認証情報を記入します。
 
@@ -51,72 +46,39 @@ sudo usermod -aG dialout $USER
 cp .env.example .env
 ```
 
-`.env` の内容：
-
 ```env
-# デバイス設定
-DEVICE_PATH=/dev/ttyUSB_power
+# SQLite history database
+DB_PATH=data/power.db
 
-# REST API サーバー設定
-SERVER_IP=192.168.1.110
-SERVER_PORT=3000
+# Home Assistant
+HA_BASE_URL=http://host.docker.internal:8123
+HA_TOKEN=your_home_assistant_long_lived_access_token_here
 
-# Bルート認証情報（スマートメーター）
-B_ROUTE_ID=your_b_route_id_here
-B_ROUTE_PASS=your_b_route_password_here
-
-# SwitchBot 設定
-SWITCHBOT_TOKEN=your_switchbot_api_token_here
+# SwitchBot API credentials
 SWITCHBOT_METER_DEVID=your_switchbot_meter_device_id_here
+SWITCHBOT_TOKEN=your_switchbot_token_here
+SWITCHBOT_SECRET=your_switchbot_secret_here
 ```
 
 各設定値の取得方法：
-- `B_ROUTE_ID` / `B_ROUTE_PASS`: 契約電力会社のBルートサービスに申し込んで取得
-- `SWITCHBOT_TOKEN`: SwitchBot アプリ → プロフィール → 開発者向けオプション
+- `HA_BASE_URL`: Home Assistant が host ネットワークで動作している場合は既定値のままでよい
+- `SWITCHBOT_TOKEN` / `SWITCHBOT_SECRET`: SwitchBot アプリ → プロフィール → 設定 → 開発者向けオプション
 - `SWITCHBOT_METER_DEVID`: SwitchBot アプリ → デバイス → 温湿度計のデバイスID
 
 > **注意**: `.env` はリポジトリにコミットしないでください（`.gitignore` で除外済み）。
 
-### 4. ビルド
-
-```bash
-cargo build --release
-```
-
-### 5. 開発環境での実行
-
-```bash
-cargo run
-```
-
-または：
-
-```bash
-./target/release/power-checker
-```
-
-## systemd サービスとしてインストール
-
-`install.sh` を実行するとビルド・インストール・サービス登録を一括で行います。
+## 起動
 
 ```bash
 ./install.sh
 ```
 
-スクリプトは以下を実行します：
-1. `cargo build --release`
-2. バイナリを `/usr/local/bin/power-checker` にコピー
-3. `.env` を `/etc/power_checker.env` にコピー（パーミッション 600）
-4. `power_checker.service` を `/lib/systemd/system/` にコピー
-5. サービスを有効化・起動
+`docker compose` でのビルドと起動を行います。ログの確認は `docker compose logs -f`。
 
-サービスの操作：
+開発環境で直接実行する場合：
 
 ```bash
-sudo systemctl status power_checker
-sudo systemctl stop power_checker
-sudo systemctl start power_checker
-sudo journalctl -u power_checker -f   # ログの確認
+HA_BASE_URL=http://127.0.0.1:8123 cargo run
 ```
 
 ## API
@@ -143,15 +105,13 @@ sudo journalctl -u power_checker -f   # ログの確認
 | `temperature` | string | 温度（℃、小数点1桁） |
 | `humidity` | string | 湿度（%） |
 
-**curl による確認：**
-
 ```bash
 curl http://192.168.1.110:3000/api/power
 ```
 
 ### GET /api/power/history
 
-期間内の電力履歴を返します。成功したメーター読み取りだけを SQLite に保存しています。
+期間内の電力履歴を返します。取得に成功した値だけを SQLite に保存しています。
 
 **クエリパラメータ：**
 
@@ -180,11 +140,6 @@ curl "http://192.168.1.110:3000/api/power/history?from=1756537200&to=1756623600"
 
 ## 参考資料
 
--   **BP35C2 リファレンス**
-    -   [ROHM 公式ページ](https://www.rohm.co.jp/products/wireless-communication/specified-low-power-radio-modules/bp35c0-product#designResources)
--   **ECHONET Lite 通信プロトコル**
-    -   [ECHONET 公式ページ](https://echonet.jp/spec_g/)
-        -   ECHONET Lite 規格書 Ver.X.XX（日本語版） 第 2 部 ECHONET Lite 通信ミドルウェア仕様
-        -   APPENDIX ECHONET 機器オブジェクト詳細規定 Release N
--   **SwitchBot API**
-    -   [SwitchBot API v1.0 ドキュメント](https://github.com/OpenWonderLabs/SwitchBotAPI)
+- [Home Assistant Smart Meter B Route 統合](https://www.home-assistant.io/integrations/route_b_smart_meter/)
+- [Home Assistant REST API](https://developers.home-assistant.io/docs/api/rest/)
+- [SwitchBot API v1.1 ドキュメント](https://github.com/OpenWonderLabs/SwitchBotAPI)

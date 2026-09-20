@@ -1,7 +1,6 @@
 use std::env;
 use std::path::PathBuf;
 
-pub const DEVICE_PATH: &str = "/dev/ttyUSB_power";
 pub fn server_ip() -> String {
     env::var("SERVER_IP").unwrap_or_else(|_| "192.168.1.110".to_string())
 }
@@ -16,6 +15,7 @@ pub const API_HISTORY_PATH: &str = "/api/power/history";
 
 pub const GET_FREQ_SEC_POWER: u64 = 60;
 pub const GET_FREQ_SEC_SB_METER: u64 = 30;
+pub const RETRY_FREQ_SEC: u64 = 10;
 
 pub fn db_path() -> PathBuf {
     env::var("DB_PATH")
@@ -23,13 +23,18 @@ pub fn db_path() -> PathBuf {
         .into()
 }
 
-// 機密情報・デバイス識別子は環境変数から取得
-pub fn b_route_id() -> String {
-    env::var("B_ROUTE_ID").expect("B_ROUTE_ID must be set")
+// Home Assistant の Smart Meter B Route 統合が公開するエンティティ
+pub const HA_ENTITY_POWER_W: &str = "sensor.smart_meter_power";
+pub const HA_ENTITY_CURRENT_R: &str = "sensor.smart_meter_current_r";
+pub const HA_ENTITY_CURRENT_T: &str = "sensor.smart_meter_current_t";
+
+pub fn ha_base_url() -> String {
+    env::var("HA_BASE_URL").unwrap_or_else(|_| "http://host.docker.internal:8123".to_string())
 }
 
-pub fn b_route_pass() -> String {
-    env::var("B_ROUTE_PASS").expect("B_ROUTE_PASS must be set")
+// 機密情報・デバイス識別子は環境変数から取得
+pub fn ha_token() -> String {
+    env::var("HA_TOKEN").expect("HA_TOKEN must be set")
 }
 
 pub fn switchbot_token() -> String {
