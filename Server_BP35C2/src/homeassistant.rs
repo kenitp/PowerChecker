@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use serde_json::json;
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
 
@@ -21,21 +20,6 @@ impl Client {
             base_url,
             token,
         }
-    }
-
-    /// 対象エンティティの再取得を要求し、完了まで待機する
-    pub async fn refresh(&self, entity_ids: &[&str]) -> Result<(), Error> {
-        self.http
-            .post(format!(
-                "{}/api/services/homeassistant/update_entity",
-                self.base_url
-            ))
-            .bearer_auth(&self.token)
-            .json(&json!({ "entity_id": entity_ids }))
-            .send()
-            .await?
-            .error_for_status()?;
-        Ok(())
     }
 
     pub async fn state(&self, entity_id: &str) -> Result<f64, Error> {

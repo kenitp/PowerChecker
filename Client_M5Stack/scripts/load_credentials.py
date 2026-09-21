@@ -46,7 +46,8 @@ def main():
     mapping = (
         ("WIFI_SSID", "CFG_WIFI_SSID"),
         ("WIFI_PASS", "CFG_WIFI_PASS"),
-        ("POWER_CHECKER_URL", "CFG_POWER_CHECKER_URL"),
+        ("HA_BASE_URL", "CFG_HA_BASE_URL"),
+        ("HA_TOKEN", "CFG_HA_TOKEN"),
         ("FTP_USER", "CFG_FTP_USER"),
         ("FTP_PASS", "CFG_FTP_PASS"),
     )

@@ -1,5 +1,4 @@
 use std::env;
-use std::path::PathBuf;
 
 pub fn server_ip() -> String {
     env::var("SERVER_IP").unwrap_or_else(|_| "192.168.1.110".to_string())
@@ -11,17 +10,10 @@ pub fn server_port() -> i32 {
         .unwrap_or(3000)
 }
 pub const API_PATH: &str = "/api/power";
-pub const API_HISTORY_PATH: &str = "/api/power/history";
 
 pub const GET_FREQ_SEC_POWER: u64 = 60;
 pub const GET_FREQ_SEC_SB_METER: u64 = 30;
 pub const RETRY_FREQ_SEC: u64 = 10;
-
-pub fn db_path() -> PathBuf {
-    env::var("DB_PATH")
-        .unwrap_or_else(|_| "data/power.db".to_string())
-        .into()
-}
 
 // Home Assistant の Smart Meter B Route 統合が公開するエンティティ
 pub const HA_ENTITY_POWER_W: &str = "sensor.smart_meter_power";

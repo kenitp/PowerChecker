@@ -4,69 +4,40 @@ B ルートサービスを使用して自宅の電力使用量をリアルタイ
 
 ![Test Image 1](_README/image.jpg)
 
-## Requirement
+## 構成
 
-- Server
+スマートメーターとの通信は Home Assistant の Smart Meter B Route 統合が担当し、
+クライアントはそこから値を取得して表示します。
 
-  - Linux 環境
-  - Rust
-  - RHOM BP35C2 Wi-SUN 対応 USB ドングル
+```
+スマートメーター --(Wi-SUN/BP35C2)-- Home Assistant
+                                        |
+                        +---------------+---------------+
+                        |                               |
+                 Client_M5Stack                  Server_BP35C2
+                （テンプレート API を直接参照）  （Client_M5Stack_rs 向け REST 中継）
+```
 
-- Client
+| ディレクトリ | 内容 |
+|--------------|------|
+| `Client_M5Stack` | M5Stack Fire / Core2 向けクライアント（PlatformIO / C++） |
+| `Client_M5Stack_rs` | 同クライアントの Rust / Slint 実装 |
+| `Server_BP35C2` | Home Assistant の値を REST API で中継するサーバー |
 
-  - M5Stack FIRE (Basic 等でも可)
-  - PlatformIO (VSCode, C++)
+Home Assistant 側の設定は `~/Docker/HomeAssistant` を参照してください。
 
-## Setup
+## セットアップ
 
-### リポジトリのクローン
-
-このリポジトリは git submodule を使用しています。クローン時にサブモジュールも同時に取得するには:
+このリポジトリは git submodule を使用しています。
 
 ```console
 $ git clone --recurse-submodules <リポジトリURL>
 ```
 
-既にクローン済みの場合は以下でサブモジュールを初期化・取得:
+既にクローン済みの場合:
 
 ```console
 $ git submodule update --init --recursive
 ```
 
-サブモジュールを最新に更新する場合:
-
-```console
-$ git submodule update --remote
-```
-
-## Usage
-
-- Server
-
-  1. B ルートサービスに申し込んで ID と PASS を取得する
-  1. ./Server_BP35C2/src/config.rs を書き換える
-     1. PB35C2 の USB デバイスパス (抜き差し/挿すポートによって変わらないように固定化することを推奨)
-     1. Server マシンの IP アドレス (DHCP で変化しないように静的 IP を使用することを推奨)
-     1. 使用していない適当なポート番号 (環境によっては Firewall 設定必要)
-     1. B ルートサービスの ID/PASS
-  1. Rust でビルド
-     ```console
-     $ cargo build
-     ```
-  1. Server マシン上で実行
-     ```console
-     $ cargo run
-     ```
-     Ubuntu 環境だと、/dev/ttyUSB\* は dialout グループになるようです。
-     実行するユーザーアカウントを dialout グループに追加しておく必要がありました。
-     ```
-     $ sudo adduser $USER dialout
-     ```
-     その後一旦 logout して再度 login。
-
-- Client
-  1. ./Client_M5Stack/src/config.cpp を書き換える
-     1. 自宅 WiFi の SSID/PASS
-     1. Server 側の IP アドレス/ポート
-  1. PlatformIO でビルド
-  1. M5Stack への書き込み
+各コンポーネントのビルド・書き込み手順は、それぞれのディレクトリの README を参照してください。

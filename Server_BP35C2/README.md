@@ -26,13 +26,12 @@ Wi-SUN モジュールとの通信は Home Assistant の [Smart Meter B Route](h
 
 統合の既定ポーリング間隔は5分のため、値の取得前に `homeassistant.update_entity` を呼んで再計測させています。これにより Home Assistant 側の履歴も60秒間隔で更新されます。
 
-`power_a` は R相とT相の平均値です。
+`power_a` は R相とT相の平均値です。履歴は Home Assistant の recorder が保持します。
 
 ## 前提
 
 - Home Assistant に Smart Meter B Route 統合が設定済みであること
   - 設定 → デバイスとサービス → 統合を追加 → Smart Meter B Route
-  - Wi-SUN モジュール（`/dev/ttyUSB0`）、BルートID、パスワードを入力する
   - 生成されたエンティティ ID を上表の名称にリネームする
 - Home Assistant の長期アクセストークン
   - プロフィール → セキュリティ → 長期アクセストークンを作成
@@ -47,9 +46,6 @@ cp .env.example .env
 ```
 
 ```env
-# SQLite history database
-DB_PATH=data/power.db
-
 # Home Assistant
 HA_BASE_URL=http://host.docker.internal:8123
 HA_TOKEN=your_home_assistant_long_lived_access_token_here
@@ -107,35 +103,6 @@ HA_BASE_URL=http://127.0.0.1:8123 cargo run
 
 ```bash
 curl http://192.168.1.110:3000/api/power
-```
-
-### GET /api/power/history
-
-期間内の電力履歴を返します。取得に成功した値だけを SQLite に保存しています。
-
-**クエリパラメータ：**
-
-| パラメータ | 型 | 説明 |
-|---|---|---|
-| `from` | unix秒 | 開始時刻（省略時は `to` の 24 時間前） |
-| `to` | unix秒 | 終了時刻（省略時は現在） |
-| `step` | 秒 | 集約幅（省略時は期間に応じて 60 / 300 / 3600） |
-
-**レスポンス例：**
-
-```json
-{
-  "from": 1756537200,
-  "to": 1756623600,
-  "step": 60,
-  "points": [
-    {"ts": 1756537200, "power_w": 350, "power_a": 1.5}
-  ]
-}
-```
-
-```bash
-curl "http://192.168.1.110:3000/api/power/history?from=1756537200&to=1756623600"
 ```
 
 ## 参考資料
