@@ -14,15 +14,16 @@ B ルートサービスを使用して自宅の電力使用量をリアルタイ
                                         |
                         +---------------+---------------+
                         |                               |
-                 Client_M5Stack                  Server_BP35C2
-                （テンプレート API を直接参照）  （Client_M5Stack_rs 向け REST 中継）
+                 Client_M5Stack                 Client_M5Stack_rs
 ```
+
+いずれのクライアントも Home Assistant のテンプレート API
+（`POST /api/template`）へ 1 リクエストを投げ、電力（W）と電流（A）だけを受け取ります。
 
 | ディレクトリ | 内容 |
 |--------------|------|
 | `Client_M5Stack` | M5Stack Fire / Core2 向けクライアント（PlatformIO / C++） |
 | `Client_M5Stack_rs` | 同クライアントの Rust / Slint 実装 |
-| `Server_BP35C2` | Home Assistant の値を REST API で中継するサーバー |
 
 Home Assistant 側の設定は `~/Docker/HomeAssistant` を参照してください。
 
