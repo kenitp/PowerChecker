@@ -8,7 +8,6 @@ void setup() {
     cfg.serial_baudrate = 115200;
     M5.begin(cfg);
     delay(500);
-    adc_power_acquire();
 
     M5.Display.setBrightness(deviceNormalBrightness());
     M5.Display.setTextFont(2);
