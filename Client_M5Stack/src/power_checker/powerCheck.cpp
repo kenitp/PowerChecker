@@ -37,22 +37,26 @@ void taskPower(void *args) {
 
                 if ((get_wifi_status() == WL_CONNECTED)) {
                     HTTPClient http;
-                    http.begin(POWER_CHECKER_URL);
+                    http.begin(HA_TEMPLATE_URL);
                     http.setTimeout(15000);
-                    int httpCode = http.GET();
+                    http.addHeader("Content-Type", "application/json");
+                    http.addHeader("Authorization", String("Bearer ") + HA_TOKEN);
+                    int httpCode = http.POST(HA_POWER_TEMPLATE);
 
-                    if (httpCode > 0) {
-                        if (httpCode == HTTP_CODE_OK) {
-                            String payload = http.getString();
-                            deserializeJson(doc, payload);
-                            String power_a = doc["power_a"];
-                            String power_w = doc["power_w"];
+                    if (httpCode == HTTP_CODE_OK) {
+                        String payload = http.getString();
+                        deserializeJson(doc, payload);
+                        String power_a = doc["power_a"];
+                        String power_w = doc["power_w"];
 
-                            dp.draw(&power_w, &power_a, force);
-                        }
+                        dp.draw(&power_w, &power_a, force);
+                    } else if (httpCode > 0) {
+                        char str[200];
+                        (void)sprintf (str, "[HTTP] POST... failed, status: %d\n", httpCode);
+                        dp.drawErr(str);
                     } else {
                         char str[200];
-                        (void)sprintf (str, "[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+                        (void)sprintf (str, "[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
                         dp.drawErr(str);
                     }
                     http.end();

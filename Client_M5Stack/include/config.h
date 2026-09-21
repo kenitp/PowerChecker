@@ -9,7 +9,9 @@ enum class POWER_LEVEL : int {
 
 extern const char* WIFI_SSID;
 extern const char* WIFI_PASS;
-extern const char* POWER_CHECKER_URL;
+extern const char* HA_TEMPLATE_URL;
+extern const char* HA_TOKEN;
+extern const char* HA_POWER_TEMPLATE;
 extern const char* NTP_SERVER;
 extern const long GMT_OFFSET_SEC;
 extern const int DAY_LIGHT_OFFSET_SEC;

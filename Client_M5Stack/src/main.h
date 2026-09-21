@@ -1,7 +1,6 @@
 #pragma once
 
 #include "m5_device.h"
-#include <driver/adc.h>
 #include "config.h"
 #include "display.h"
 #include "wifi_connect.h"

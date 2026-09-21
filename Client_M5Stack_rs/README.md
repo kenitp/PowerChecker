@@ -4,7 +4,7 @@ M5Stack Fire（ESP32）向けの電力表示クライアントです。元の C+
 
 ## 機能
 
-- **電力モード**: Power Checker サーバの HTTP API から電力（W）などを取得して表示
+- **電力モード**: Home Assistant のテンプレート API から電力（W）・電流（A）を取得して表示
 - **時計モード**: NTP で時刻同期し、デジタル時計を表示
 - **フォトモード**: SD カードの画像を表示（フォトフレーム）
 
@@ -48,7 +48,8 @@ M5Stack Fire（ESP32）向けの電力表示クライアントです。元の C+
 |------|------|
 | `WIFI_SSID` | 接続する Wi-Fi の SSID |
 | `WIFI_PASS` | Wi-Fi のパスワード |
-| `POWER_CHECKER_URL` | 電力 API の完全 URL（**実行時はリテラル IPv4 のみ**。DNS は使わない） |
+| `HA_BASE_URL` | Home Assistant のベース URL（**実行時はリテラル IPv4 のみ**。DNS は使わない） |
+| `HA_TOKEN` | Home Assistant の長期アクセストークン（プロフィール画面 → セキュリティ で発行） |
 
 ### `.env` で設定する（推奨）
 

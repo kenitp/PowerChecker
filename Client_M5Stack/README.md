@@ -1,6 +1,6 @@
 # PowerChecker Client (M5Stack)
 
-M5Stack Fire / Core2 向けの PowerChecker クライアントです。サーバーから電力情報を取得して表示するほか、時計・フォトフレーム・FTP サーバー機能を備えています。
+M5Stack Fire / Core2 向けの PowerChecker クライアントです。Home Assistant から電力情報を取得して表示するほか、時計・フォトフレーム・FTP サーバー機能を備えています。
 
 ## 対応デバイス
 
@@ -35,7 +35,7 @@ FTP サーバー機能により、Wi-Fi 経由で SD カードへ画像を転送
 - M5Stack Fire または M5Stack Core2
 - [PlatformIO](https://platformio.org/)（CLI または VS Code 拡張）
 - Wi-Fi 環境
-- PowerChecker サーバー（`/api/power` エンドポイント）
+- Home Assistant（Smart Meter B Route 統合が設定済みであること）
 
 ## 設定
 
@@ -48,10 +48,13 @@ cp .env.example .env
 ```env
 WIFI_SSID=your_ssid_here
 WIFI_PASS=your_password_here
-POWER_CHECKER_URL=http://192.168.1.x:3000/api/power
+HA_BASE_URL=http://192.168.1.x:8123
+HA_TOKEN=your_home_assistant_long_lived_access_token_here
 FTP_USER=M5Stack
 FTP_PASS=M5Stack
 ```
+
+`HA_TOKEN` は Home Assistant のプロフィール画面（セキュリティ → 長期アクセストークン）で発行します。
 
 > `.env` はリポジトリに含まれません（`.gitignore` で除外）。認証情報を誤ってコミットしないよう注意してください。
 

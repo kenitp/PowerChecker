@@ -11,7 +11,7 @@ fn main() {
     }
 
     // Pass through to rustc for `env!()` in main.rs (compile-time embedding).
-    const REQUIRED: &[&str] = &["WIFI_SSID", "WIFI_PASS", "POWER_CHECKER_URL"];
+    const REQUIRED: &[&str] = &["WIFI_SSID", "WIFI_PASS", "HA_BASE_URL", "HA_TOKEN"];
     for &var in REQUIRED {
         match std::env::var(var) {
             Ok(val) if !val.is_empty() => {

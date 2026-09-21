@@ -38,10 +38,11 @@ use network::NetworkState;
 use power::{watts_to_level, watts_to_ratio};
 use time_utils::{current_time, DOW_STR};
 
-// ── Build-time WiFi / server config ──────────────────────────────────────────
+// ── Build-time WiFi / Home Assistant config ──────────────────────────────────
 const WIFI_SSID: &str = env!("WIFI_SSID");
 const WIFI_PASS: &str = env!("WIFI_PASS");
-const POWER_CHECKER_URL: &str = env!("POWER_CHECKER_URL");
+const HA_BASE_URL: &str = env!("HA_BASE_URL");
+const HA_TOKEN: &str = env!("HA_TOKEN");
 
 // ── NTP ──────────────────────────────────────────────────────────────────────
 const NTP_HOST_IP: Ipv4Address = Ipv4Address::new(133, 243, 238, 164); // ntp.nict.jp
@@ -258,7 +259,7 @@ impl EspBackend {
                 if let Some(ref mut ns) = net {
                     if ns.ip_assigned {
                         debug!("[Main] Fetching power (now_ms={})", now_ms);
-                        match ns.http_get_power(now_ms) {
+                        match ns.http_fetch_power(now_ms) {
                             Ok((w, ca)) => {
                                 POWER_WATTS.store(w, Ordering::Relaxed);
                                 POWER_CENTI_A.store(ca, Ordering::Relaxed);
@@ -371,7 +372,7 @@ pub fn init() {
     init_logger_from_env();
     info!("=== PowerChecker Client starting ===");
     info!("  SSID : {}", WIFI_SSID);
-    info!("  URL  : {}", POWER_CHECKER_URL);
+    info!("  HA   : {}", HA_BASE_URL);
     info!("  NTP  : {}", NTP_HOST_IP);
     info!("  Heap : {} KB", HEAP_SIZE / 1024);
 

@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{boxed::Box, format, string::String, string::ToString};
+use alloc::{boxed::Box, format, string::String};
 use core::sync::atomic::Ordering;
 
 use esp_hal::time::Instant;
@@ -19,11 +19,16 @@ use smoltcp::{
 
 use crate::{
     WIFI_CONNECTED, WIFI_PASS, WIFI_SSID,
-    POWER_CHECKER_URL, NTP_HOST_IP, NTP_PORT, JST_OFFSET_SECS,
+    HA_BASE_URL, HA_TOKEN, NTP_HOST_IP, NTP_PORT, JST_OFFSET_SECS,
 };
 
 const HTTP_CONNECT_TIMEOUT_MS: u64 = 15_000;
+const HTTP_SEND_TIMEOUT_MS: u64 = 15_000;
 const HTTP_RECV_TIMEOUT_MS: u64 = 15_000;
+
+/// Home Assistant のテンプレート API。必要な値だけを 1 リクエストで受け取る。
+const HA_TEMPLATE_PATH: &str = "/api/template";
+const HA_POWER_TEMPLATE: &str = r#"{"template": "{\"power_w\": \"{{ states('sensor.smart_meter_power') }}\", \"power_a\": \"{{ ((states('sensor.smart_meter_current_r')|float(0) + states('sensor.smart_meter_current_t')|float(0)) / 2) | round(1) }}\"}"}"#;
 
 #[derive(Debug)]
 pub enum NetworkError {
@@ -139,7 +144,7 @@ impl NetworkState {
         });
 
         let tcp_rx: &'static mut [u8] = Box::leak(Box::new([0u8; 4096]));
-        let tcp_tx: &'static mut [u8] = Box::leak(Box::new([0u8; 512]));
+        let tcp_tx: &'static mut [u8] = Box::leak(Box::new([0u8; 1024]));
         let udp_rx_data: &'static mut [u8] = Box::leak(Box::new([0u8; 256]));
         let udp_tx_data: &'static mut [u8] = Box::leak(Box::new([0u8; 256]));
         let udp_rx_meta: &'static mut [PacketMetadata; 4] =
@@ -235,9 +240,9 @@ impl NetworkState {
         }
     }
 
-    pub fn http_get_power(&mut self, now_ms: u64) -> Result<(u32, u32), NetworkError> {
-        let (host, port, path) = parse_url(POWER_CHECKER_URL)?;
-        info!("[HTTP] GET http://{}:{}{}", host, port, path);
+    pub fn http_fetch_power(&mut self, now_ms: u64) -> Result<(u32, u32), NetworkError> {
+        let (host, port) = parse_authority(HA_BASE_URL)?;
+        info!("[HTTP] POST http://{}:{}{}", host, port, HA_TEMPLATE_PATH);
 
         // ── Ensure the TCP socket is fully closed before connecting ──────────
         {
@@ -290,17 +295,48 @@ impl NetworkState {
             }
         }
 
+        // Authorization ヘッダにトークンが乗るためリクエスト全文はログに出さない
         let req = format!(
-            "GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nAccept: application/json\r\n\r\n",
-            path, host
+            "POST {} HTTP/1.1\r\nHost: {}\r\nAuthorization: Bearer {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            HA_TEMPLATE_PATH,
+            host,
+            HA_TOKEN,
+            HA_POWER_TEMPLATE.len(),
+            HA_POWER_TEMPLATE
         );
-        debug!("[HTTP] Request:\n{}", req);
+
+        // 送信バッファより大きいリクエストもあるため、書き切るまでポールしながら送る
         {
-            let s = self.sockets.get_mut::<TcpSocket>(self.tcp_handle);
-            s.send_slice(req.as_bytes()).map_err(|e| {
-                warn!("[HTTP] send_slice error: {:?}", e);
-                NetworkError::Send
-            })?;
+            use embedded_hal::delay::DelayNs;
+            let mut delay = esp_hal::delay::Delay::new();
+            let bytes = req.as_bytes();
+            let mut sent = 0usize;
+            let send_deadline =
+                Instant::now().duration_since_epoch().as_millis() + HTTP_SEND_TIMEOUT_MS;
+            while sent < bytes.len() {
+                {
+                    let s = self.sockets.get_mut::<TcpSocket>(self.tcp_handle);
+                    sent += s.send_slice(&bytes[sent..]).map_err(|e| {
+                        warn!("[HTTP] send_slice error: {:?}", e);
+                        NetworkError::Send
+                    })?;
+                }
+                let cur = Instant::now().duration_since_epoch().as_millis();
+                self.poll(cur);
+                if sent < bytes.len() {
+                    if cur > send_deadline {
+                        warn!(
+                            "[HTTP] Send timeout ({} s), sent {}/{} bytes",
+                            HTTP_SEND_TIMEOUT_MS / 1000,
+                            sent,
+                            bytes.len()
+                        );
+                        return Err(NetworkError::Timeout);
+                    }
+                    delay.delay_ms(5u32);
+                }
+            }
+            debug!("[HTTP] Request sent ({} bytes)", sent);
         }
 
         let mut body_buf = [0u8; 512];
@@ -463,70 +499,44 @@ impl NetworkState {
 
 // ── URL parsing ───────────────────────────────────────────────────────────────
 
-fn parse_url(url: &str) -> Result<(&str, u16, &'static str), NetworkError> {
+fn parse_authority(url: &str) -> Result<(&str, u16), NetworkError> {
     let rest = url.strip_prefix("http://").ok_or_else(|| {
         warn!("[URL] Not an http:// URL: {}", url);
         NetworkError::BadUrl
     })?;
-    let slash = rest.find('/').unwrap_or(rest.len());
-    let authority = &rest[..slash];
-    let path_str = if slash < rest.len() {
-        alloc::format!("/{}", &rest[slash + 1..])
-    } else {
-        "/".to_string()
-    };
-    let path: &'static str = Box::leak(path_str.into_boxed_str());
+    let authority = rest.split('/').next().unwrap_or(rest);
 
-    let (host, port) = if let Some((h, p)) = authority.split_once(':') {
-        (h, p.parse::<u16>().map_err(|_| NetworkError::BadUrl)?)
-    } else {
-        (authority, 80u16)
-    };
-    Ok((host, port, path))
+    match authority.split_once(':') {
+        Some((h, p)) => Ok((h, p.parse::<u16>().map_err(|_| NetworkError::BadUrl)?)),
+        None => Ok((authority, 80u16)),
+    }
 }
 
 // ── JSON parsing ──────────────────────────────────────────────────────────────
 //
-// The server may return either numeric or string JSON values:
-//   {"power_w": 1500, "power_a": 6.50}   ← numbers (most common)
-//   {"power_w": "1500", "power_a": "6.50"} ← strings (ArduinoJson default)
-// We try numeric first, then fall back to string.
+// テンプレートは値を文字列で返す:
+//   {"power_w": "1500", "power_a": "6.5"}
+// センサーが未取得のときは "unknown" などが入るため、数値化できなければエラーにする。
 
 fn parse_power_json(json: &[u8]) -> Result<(u32, u32), NetworkError> {
-    // ── Attempt 1: numeric fields ────────────────────────────────────────────
     #[derive(serde::Deserialize)]
-    struct RespNum {
-        power_w: f32,
-        power_a: f32,
-    }
-    if let Ok((r, _)) = serde_json_core::from_slice::<RespNum>(json) {
-        let watts = r.power_w as u32;
-        let centi = (r.power_a * 100.0 + 0.5) as u32;
-        info!("[JSON] Parsed (numeric) power_w={} power_a={:.2}", watts, r.power_a);
-        return Ok((watts, centi));
-    }
-
-    // ── Attempt 2: string fields ─────────────────────────────────────────────
-    #[derive(serde::Deserialize)]
-    struct RespStr<'a> {
+    struct Resp<'a> {
         power_w: &'a str,
         power_a: &'a str,
     }
-    match serde_json_core::from_slice::<RespStr>(json) {
-        Ok((r, _)) => {
-            let watts: u32 = r.power_w.trim().parse().map_err(|_| {
-                warn!("[JSON] Cannot parse power_w as u32: \"{}\"", r.power_w);
-                NetworkError::Parse
-            })?;
-            let centi = parse_decimal2(r.power_a.trim())?;
-            info!("[JSON] Parsed (string) power_w={} power_a_centi={}", watts, centi);
-            Ok((watts, centi))
-        }
-        Err(e) => {
-            warn!("[JSON] Both numeric and string parse failed: {:?}", e);
-            Err(NetworkError::Parse)
-        }
-    }
+
+    let (r, _) = serde_json_core::from_slice::<Resp>(json).map_err(|e| {
+        warn!("[JSON] Parse failed: {:?}", e);
+        NetworkError::Parse
+    })?;
+
+    let watts: u32 = r.power_w.trim().parse().map_err(|_| {
+        warn!("[JSON] Cannot parse power_w as u32: \"{}\"", r.power_w);
+        NetworkError::Parse
+    })?;
+    let centi = parse_decimal2(r.power_a.trim())?;
+    info!("[JSON] power_w={} power_a_centi={}", watts, centi);
+    Ok((watts, centi))
 }
 
 /// Parse "3.24" → 324,  "5" → 500.
